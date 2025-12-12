@@ -2,7 +2,9 @@
 
 一个专业的大语言模型性能测试平台，支持多种推理引擎和全面的性能指标分析。
 
-> **🚀 快速开始**: 查看 [QUICK_DEPLOY.md](QUICK_DEPLOY.md) 了解如何一键部署到 Ubuntu 服务器
+> **🚀 快速开始**: 查看 [快速部署指南](docs/deployment/quick-deploy.md) 了解如何一键部署到 Ubuntu 服务器
+>
+> **📚 完整文档**: 访问 [docs/](docs/) 查看所有文档
 
 ## 功能特性
 
