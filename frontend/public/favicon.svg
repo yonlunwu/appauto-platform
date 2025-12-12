@@ -1,21 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="barGrad1" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:rgba(255,255,255,0.7);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,1);stop-opacity:1" />
     </linearGradient>
   </defs>
 
-  <!-- Background circle -->
-  <circle cx="50" cy="50" r="45" fill="url(#grad)"/>
+  <!-- Background circle with gradient -->
+  <circle cx="50" cy="50" r="46" fill="url(#bgGrad)"/>
 
-  <!-- Performance chart bars -->
-  <rect x="25" y="60" width="8" height="20" fill="white" opacity="0.9" rx="2"/>
-  <rect x="38" y="50" width="8" height="30" fill="white" opacity="0.9" rx="2"/>
-  <rect x="51" y="35" width="8" height="45" fill="white" opacity="0.9" rx="2"/>
-  <rect x="64" y="45" width="8" height="35" fill="white" opacity="0.9" rx="2"/>
+  <!-- Inner shadow circle for depth -->
+  <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(0,0,0,0.1)" stroke-width="1"/>
 
-  <!-- Lightning bolt for performance -->
-  <path d="M 48 15 L 42 35 L 50 35 L 45 50 L 55 30 L 48 30 Z"
-        fill="#fbbf24" stroke="#f59e0b" stroke-width="1"/>
+  <!-- Modern rising bars - cleaner design -->
+  <rect x="20" y="55" width="10" height="25" fill="url(#barGrad1)" rx="2"/>
+  <rect x="35" y="45" width="10" height="35" fill="url(#barGrad1)" rx="2"/>
+  <rect x="50" y="30" width="10" height="50" fill="url(#barGrad1)" rx="2"/>
+  <rect x="65" y="38" width="10" height="42" fill="url(#barGrad1)" rx="2"/>
+
+  <!-- Subtle rising trend line -->
+  <path d="M 25 65 Q 40 52, 55 40 T 70 42"
+        fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Small dots on trend line for detail -->
+  <circle cx="25" cy="65" r="2" fill="white" opacity="0.8"/>
+  <circle cx="55" cy="40" r="2" fill="white" opacity="0.8"/>
+  <circle cx="70" cy="42" r="2" fill="white" opacity="0.8"/>
 </svg>
