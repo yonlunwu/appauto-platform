@@ -54,6 +54,11 @@ task_logs/
 *.log
 log/
 
+# Test Results
+results/
+*.xlsx
+archives/
+
 # Frontend
 node_modules/
 dist/

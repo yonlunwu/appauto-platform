@@ -235,7 +235,7 @@ wheels = [
 [[package]]
 name = "appauto"
 version = "0.1.2"
-source = { path = "../../../../../../Downloads/appauto-0.1.2-py3-none-any.whl" }
+source = { directory = "../../../appauto" }
 dependencies = [
     { name = "addict" },
     { name = "allure-pytest" },
@@ -259,9 +259,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "tabulate" },
     { name = "tenacity" },
-]
-wheels = [
-    { filename = "appauto-0.1.2-py3-none-any.whl", hash = "sha256:f59fb89f34797955e09e04c161a71b74dae1f772bb64cfe9d4b31a444844d20b" },
 ]
 
 [package.metadata]
@@ -288,6 +285,12 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tenacity" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "black", specifier = ">=25.1.0" },
+    { name = "flake8", specifier = ">=7.2.0" },
 ]
 
 [[package]]
@@ -1753,7 +1756,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "appauto", path = "../../../../../../Downloads/appauto-0.1.2-py3-none-any.whl" },
+    { name = "appauto", directory = "../../../appauto" },
     { name = "asyncssh", specifier = ">=2.14.0" },
     { name = "bcrypt", specifier = ">=4.1.2" },
     { name = "email-validator", specifier = ">=2.1.1" },
