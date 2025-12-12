@@ -20,10 +20,9 @@ class TestRunRequest(BaseModel):
     model: str
     input_length: int = Field(gt=0)
     output_length: int = Field(gt=0)
-    concurrency: Optional[int] = Field(default=None, gt=0)
+    concurrency: int = Field(gt=0)
     loop: int = Field(default=1, gt=0)
     warmup: bool = False
-    auto_concurrency: bool = False
     ssh_config: Optional[SSHConfig] = None
     execution_mode: Literal["local", "remote"] = "remote"  # 默认远程执行
     scenario: Literal["amaas", "ft"] = "ft"  # 测试场景：AMaaS或ft容器
@@ -103,8 +102,6 @@ class TestRunResponse(BaseModel):
     task_id: int
     status: str
     concurrency: int
-    auto_concurrency: bool
-    concurrency_details: Optional[Dict[str, Any]] = None
 
 
 class TaskSummary(BaseModel):
@@ -168,23 +165,6 @@ class TaskLogsResponse(BaseModel):
     task_id: int
     logs: str
     log_file_path: Optional[str] = None
-
-
-class ConcurrencyProbeRequest(BaseModel):
-    engine: str
-    model: str
-    input_length: int = Field(gt=0)
-    output_length: int = Field(gt=0)
-    ssh_config: Optional[SSHConfig] = None
-
-
-class ConcurrencyProbeResponse(BaseModel):
-    suggested: int
-    engine_baseline: int
-    normalized_ctx: float
-    estimated_latency: float
-    method: str
-    model: str
 
 
 class RegisterRequest(BaseModel):

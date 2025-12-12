@@ -1,6 +1,5 @@
 import {
   AuthResponse,
-  ConcurrencyProbeResponse,
   HealthCheckResponse,
   ModelInfo,
   ModelInstanceListResponse,
@@ -99,15 +98,6 @@ export function fetchTasks(params?: { page?: number; page_size?: number; task_ty
 
   const queryString = queryParams.toString();
   return request(`/tests/list${queryString ? `?${queryString}` : ""}`);
-}
-
-export function probeConcurrency(
-  payload: Pick<TestRunForm, "engine" | "model" | "input_length" | "output_length" | "ssh_config">,
-): Promise<ConcurrencyProbeResponse> {
-  return request("/tests/concurrency/probe", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
 }
 
 export function archiveTask(taskId: number): Promise<void> {
@@ -332,6 +322,17 @@ export function updateUserRole(userId: number, role: string): Promise<{
   return request(`/system/users/${userId}/role`, {
     method: "PUT",
     body: JSON.stringify({ role }),
+  });
+}
+
+export function resetUserPassword(userId: number, newPassword: string): Promise<{
+  user_id: number;
+  email: string;
+  message: string;
+}> {
+  return request(`/system/users/${userId}/password`, {
+    method: "PUT",
+    body: JSON.stringify({ new_password: newPassword }),
   });
 }
 

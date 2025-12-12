@@ -2,10 +2,9 @@
 
 ## 项目概述
 
-**perftest-platform** 是一个基于 evalscope 的 LLM 性能测试平台，支持：
+**perftest-platform** 是一个基于 appauto 的 LLM 性能测试平台，使用 evalscope 进行性能测试，支持：
 - ✅ 参数化性能测试（input/output length、concurrency、loop、warmup）
 - ✅ SSH 远程执行（连接远程服务器进行测试）
-- ✅ 智能并发探测（基于 GPU 硬件信息自动推荐）
 - ✅ 详细 Excel 报告生成
 - ✅ 用户认证和任务管理
 - ✅ 现代化 Web UI
@@ -19,7 +18,7 @@
 ### 后端
 - Python 3.10+
 - SQLite 3
-- （可选）本地安装 evalscope（用于本地模式）
+- appauto（Python 包，会自动安装）
 
 ### 前端
 - Node.js 18+
@@ -27,8 +26,8 @@
 
 ### 远程服务器（用于远程执行）
 - SSH 访问权限
-- 已安装 evalscope
-- （可选）NVIDIA GPU + nvidia-smi
+- 已安装 appauto 及其依赖
+- （可选）NVIDIA GPU + nvidia-smi（用于硬件信息采集）
 
 ---
 
@@ -134,7 +133,7 @@ npm run dev -- --host 0.0.0.0 --port 5173
    认证方式: 密钥认证
    私钥路径: ~/.ssh/id_rsa
    ```
-4. 点击"自动计算最大并发"（获取远程硬件信息）
+4. 设置并发度参数
 5. 点击"启动测试"
 
 ### 4. 查看结果
@@ -250,20 +249,6 @@ curl -X POST http://localhost:8000/api/tests/run \
 ```bash
 curl http://localhost:8000/api/tests/list \
   -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-### 并发探测
-
-```bash
-curl -X POST http://localhost:8000/api/tests/concurrency/probe \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "engine": "vllm",
-    "model": "qwen2.5-7b",
-    "input_length": 512,
-    "output_length": 512
-  }'
 ```
 
 ---

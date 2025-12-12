@@ -87,16 +87,16 @@ async def test_run_archive_delete_flow(api_client: httpx.AsyncClient):
         "model": "qwen2.5-mini",
         "input_length": 128,
         "output_length": 256,
+        "concurrency": 4,
         "loop": 1,
         "warmup": False,
-        "auto_concurrency": True,
     }
 
     response = await api_client.post("/api/tests/run", json=payload)
     assert response.status_code == 200
     body = response.json()
     task_id = body["task_id"]
-    assert body["concurrency"] > 0
+    assert body["concurrency"] == 4
 
     detail = await _wait_for_completion(api_client, task_id)
     assert detail["status"] == "completed"
@@ -120,22 +120,6 @@ async def test_run_archive_delete_flow(api_client: httpx.AsyncClient):
 
     final_resp = await api_client.get(f"/api/tests/{task_id}")
     assert final_resp.status_code == 404
-
-
-async def test_concurrency_probe(api_client: httpx.AsyncClient):
-    response = await api_client.post(
-        "/api/tests/concurrency/probe",
-        json={
-            "engine": "vllm",
-            "model": "qwen2.5-mini",
-            "input_length": 512,
-            "output_length": 512,
-        },
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["suggested"] > 0
-    assert data["engine_baseline"] == 32
 
 
 async def test_ssh_config_storage(api_client: httpx.AsyncClient):

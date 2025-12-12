@@ -19,7 +19,7 @@
 ## 技术栈
 
 ### 后端
-- Python 3.11+
+- Python 3.10+
 - FastAPI
 - SQLModel + SQLite
 - Alembic（数据库迁移）
@@ -44,16 +44,17 @@ cd perftest-platform
 ```bash
 cd llm-perf-platform
 
-# 创建虚拟环境
-python3.11 -m venv .venv
-source .venv/bin/activate  # Linux/Mac
+# 使用 uv（推荐，更快）
+uv sync
+source .venv/bin/activate
+
+# 或使用传统 pip
+# python3.10 -m venv .venv
+# source .venv/bin/activate  # Linux/Mac
 # .venv\Scripts\activate  # Windows
+# pip install -e .
 
-# 安装依赖
-pip install -e .
-
-# 初始化数据库
-alembic upgrade head
+# 数据库会在首次启动时自动初始化，无需手动运行 alembic
 
 # 启动后端服务
 uvicorn llm_perf_platform.main:app --host 0.0.0.0 --port 8000 --reload
@@ -84,90 +85,16 @@ npm run dev
 
 ## 生产环境部署
 
-### 方式一：真·一键部署（最简单，推荐）
+> ⚠️ **注意**: 一键部署脚本正在开发中。请参考以下手动部署步骤。
 
-在 Ubuntu 服务器上执行一条命令完成所有部署：
+### 手动部署步骤
 
-```bash
-# 1. 克隆代码
-git clone <repository-url>
-cd perftest-platform
+在生产环境中，推荐使用 systemd + Nginx 的方式部署：
 
-# 2. 一键部署（需要 sudo 权限）
-sudo ./one-click-deploy.sh --appauto-path /path/to/appauto
-```
-
-就这么简单！脚本会自动完成：
-- ✅ 安装所有系统依赖（Python 3.11, Node.js, Nginx 等）
-- ✅ 配置后端和前端
-- ✅ 初始化数据库
-- ✅ 设置 systemd 服务
-- ✅ 配置 Nginx 反向代理
-- ✅ 启动所有服务
-
-**常用选项**：
-
-```bash
-# 基本部署
-sudo ./one-click-deploy.sh --appauto-path /opt/appauto
-
-# 使用自定义域名
-sudo ./one-click-deploy.sh --appauto-path /opt/appauto --domain example.com
-
-# 启用 HTTPS（需要提前准备好 SSL 证书）
-sudo ./one-click-deploy.sh --appauto-path /opt/appauto --domain example.com --ssl
-
-# 自定义后端端口
-sudo ./one-click-deploy.sh --appauto-path /opt/appauto --backend-port 9000
-
-# 仅部署代码，不设置服务（用于测试）
-sudo ./one-click-deploy.sh --appauto-path /opt/appauto --skip-services --skip-nginx
-
-# 查看所有选项
-./one-click-deploy.sh --help
-```
-
-**部署后**：
-- 访问地址：`http://your-server-ip` 或 `http://your-domain`
-- 默认管理员账号：`admin@example.com` / `admin123`
-- ⚠️ **重要**：首次登录后立即修改密码！
-
----
-
-### 方式二：分步部署（更灵活）
-
-如果需要更细粒度的控制，可以分步执行：
-
-```bash
-# 1. 克隆代码
-git clone <repository-url>
-cd perftest-platform
-
-# 2. 确保 appauto 在正确位置
-# 默认会在 ../appauto 查找，或者通过环境变量指定
-
-# 3. 运行基础部署脚本
-chmod +x deploy.sh
-APPAUTO_PATH=/path/to/appauto ./deploy.sh
-
-# 4. 配置环境变量（可选）
-cp llm-perf-platform/.env.example llm-perf-platform/.env
-vi llm-perf-platform/.env
-
-# 5. 设置系统服务
-chmod +x setup-services.sh
-sudo ./setup-services.sh
-
-# 6. 配置 Nginx
-chmod +x setup-nginx.sh
-sudo ./setup-nginx.sh
-```
-
-### 方式三：手动部署
 
 #### 系统要求
 - Ubuntu 20.04+ / Debian 11+
-- Python 3.11+
+- Python 3.10+
 - Node.js 18+
 - Nginx
 - SQLite3
@@ -176,9 +103,9 @@ sudo ./setup-nginx.sh
 ```bash
 sudo apt-get update
 sudo apt-get install -y \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
+    python3.10 \
+    python3.10-venv \
+    python3.10-dev \
     python3-pip \
     nodejs \
     npm \
@@ -192,20 +119,21 @@ sudo apt-get install -y \
 ```bash
 cd llm-perf-platform
 
-# 创建虚拟环境
-python3.11 -m venv .venv
+# 方式 1: 使用 uv（推荐）
+uv sync
 source .venv/bin/activate
 
-# 安装依赖
-pip install --upgrade pip
-pip install -e .
+# 方式 2: 使用传统 pip
+# python3.10 -m venv .venv
+# source .venv/bin/activate
+# pip install --upgrade pip
+# pip install -e .
 
 # 配置环境变量
 cp .env.example .env
 vi .env
 
-# 初始化数据库
-alembic upgrade head
+# 数据库会在首次启动时自动初始化，无需手动运行 alembic
 
 # 创建必要目录
 mkdir -p logs results
@@ -349,12 +277,14 @@ sudo tail -f /var/log/nginx/llm-perf-platform-error.log
 
 ```bash
 # 数据库
-DATABASE_URL=sqlite:///./llm_perf_platform.db
+# 默认位置: llm_perf_platform/database.db
+# 取消注释以覆盖默认位置:
+# LLM_PERF_DB_PATH=/custom/path/to/database.db
 
 # 日志目录
 LLM_PERF_LOG_DIR=./logs
 
-# Appauto 路径（可选，部署时可通过环境变量或部署脚本参数指定）
+# Appauto 路径
 APPAUTO_PATH=/path/to/appauto
 
 # API 配置
@@ -408,7 +338,7 @@ alembic history
 ## 故障排查
 
 ### 后端无法启动
-1. 检查 Python 版本：`python3.11 --version`
+1. 检查 Python 版本：`python3 --version` (需要 >= 3.10)
 2. 检查虚拟环境：`source .venv/bin/activate`
 3. 检查依赖：`pip list`
 4. 查看日志：`tail -f logs/backend-error.log`
@@ -416,8 +346,8 @@ alembic history
 ### Appauto 依赖问题
 1. 检查 appauto 路径是否正确：`ls -la /path/to/appauto`
 2. 检查 `pyproject.toml` 中的 appauto 路径：`grep appauto pyproject.toml`
-3. 重新运行部署脚本并指定正确路径：`APPAUTO_PATH=/correct/path ./deploy.sh`
-4. 手动更新 pyproject.toml 中的路径后重新安装：`pip install -e .`
+3. 手动更新 pyproject.toml 中的路径后重新安装：`pip install -e .`
+4. 或在 `.env` 文件中设置 `APPAUTO_PATH` 环境变量
 
 ### 前端构建失败
 1. 检查 Node.js 版本：`node --version` (需要 >= 18)

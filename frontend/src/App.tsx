@@ -14,7 +14,6 @@ import {
   getAppautoVersions,
   listUsers,
   loginUser,
-  probeConcurrency,
   registerUser,
   retryTask,
   runTest,
@@ -23,12 +22,12 @@ import {
   setAuthToken,
   updateAppauto,
   updateUserRole,
+  resetUserPassword,
   deleteUser,
   batchDeleteUsers,
   UserInfo,
 } from "./api";
 import {
-  ConcurrencyProbeResponse,
   ModelInfo,
   Profile,
   TaskSummary,
@@ -41,10 +40,9 @@ const DEFAULT_FORM: TestRunForm = {
   model: "",
   input_length: 512,
   output_length: 512,
-  concurrency: "4",
+  concurrency: "1 4",
   loop: 1,
   warmup: false,
-  auto_concurrency: false,
   execution_mode: "remote",
   scenario: "amaas",
   ssh_config: null,
@@ -70,7 +68,7 @@ const DEFAULT_FORM: TestRunForm = {
   ssh_user: "",
   ssh_password: "",
   ssh_port: 22,
-  request_number: "100",
+  request_number: "1 4",
   tokenizer_path: "",
   debug: false,
 };
@@ -81,7 +79,6 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [probeInfo, setProbeInfo] = useState<ConcurrencyProbeResponse | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authForm, setAuthForm] = useState({ email: "", password: "" });
@@ -324,6 +321,26 @@ function App() {
         alert("不能删除自己");
       } else {
         alert(`删除失败: ${errorMessage}`);
+      }
+    }
+  }
+
+  async function handleResetPassword(userId: number, email: string, newPassword: string) {
+    if (!profile || profile.role !== "admin") return;
+
+    try {
+      const result = await resetUserPassword(userId, newPassword);
+      alert(result.message);
+      await loadUsers();
+    } catch (err: any) {
+      console.error("Failed to reset password:", err);
+      const errorMessage = err.message || "重置密码失败";
+      if (errorMessage.includes("password_too_short")) {
+        alert("密码长度至少为8位");
+      } else if (errorMessage.includes("user_not_found")) {
+        alert("用户不存在");
+      } else {
+        alert(`重置密码失败: ${errorMessage}`);
       }
     }
   }
@@ -598,18 +615,6 @@ function App() {
       setError(err instanceof Error ? err.message : "启动失败");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleProbe() {
-    setError(null);
-    try {
-      const resp = await probeConcurrency(form);
-      setProbeInfo(resp);
-      updateForm("concurrency", resp.suggested.toString());
-      updateForm("auto_concurrency", true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "探测失败");
     }
   }
 
@@ -3487,6 +3492,27 @@ function App() {
                               <option value="user">普通用户</option>
                               <option value="admin">管理员</option>
                             </select>
+                            <button
+                              onClick={() => {
+                                const newPassword = prompt(`请输入 ${user.email} 的新密码（至少8位）：`);
+                                if (newPassword && newPassword.length >= 8) {
+                                  handleResetPassword(user.id, user.email, newPassword);
+                                } else if (newPassword) {
+                                  alert("密码长度至少为8位");
+                                }
+                              }}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.875rem",
+                                backgroundColor: "#ff9800",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              重置密码
+                            </button>
                             <button
                               onClick={() => handleDeleteUser(user.id, user.email)}
                               style={{

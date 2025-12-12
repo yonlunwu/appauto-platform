@@ -94,3 +94,37 @@ class AuthService:
                 logger = logging.getLogger(__name__)
                 logger.info(f"Default admin user created: {email}")
 
+    def reset_user_password(self, user_id: int, new_password: str) -> UserAccount:
+        """重置用户密码（管理员功能）
+
+        Args:
+            user_id: 用户 ID
+            new_password: 新密码
+
+        Returns:
+            UserAccount: 更新后的用户对象
+
+        Raises:
+            ValueError: 用户不存在
+        """
+        with get_session() as session:
+            user = session.get(UserAccount, user_id)
+            if not user:
+                raise ValueError("user_not_found")
+
+            # 更新密码哈希
+            user.password_hash = self._hash_password(new_password)
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+
+            # 删除该用户的所有 session token（强制重新登录）
+            tokens = session.exec(
+                select(SessionToken).where(SessionToken.user_id == user_id)
+            ).all()
+            for token in tokens:
+                session.delete(token)
+            session.commit()
+
+            return user
+

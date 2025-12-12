@@ -151,6 +151,11 @@ class UpdateUserRoleRequest(BaseModel):
     role: str  # "admin" 或 "user"
 
 
+class ResetPasswordRequest(BaseModel):
+    """重置用户密码请求"""
+    new_password: str
+
+
 @router.get("/users", response_model=UserListResponse)
 def list_users(current_user: UserAccount = Depends(get_admin_user)):
     """获取所有用户列表
@@ -227,6 +232,48 @@ def update_user_role(
             "role": user.role,
             "message": f"用户角色已更新为: {request.role}"
         }
+
+
+@router.put("/users/{user_id}/password")
+def reset_user_password(
+    user_id: int,
+    request: ResetPasswordRequest,
+    current_user: UserAccount = Depends(get_admin_user)
+):
+    """重置用户密码
+
+    只有管理员可以访问
+    重置密码后，该用户的所有登录会话将被清除，需要重新登录
+
+    Args:
+        user_id: 要重置密码的用户 ID
+        request: 包含新密码的请求体
+    """
+    from llm_perf_platform.services.auth_service import AuthService
+
+    # 验证密码长度
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="password_too_short"
+        )
+
+    auth_service = AuthService()
+
+    try:
+        user = auth_service.reset_user_password(user_id, request.new_password)
+        return {
+            "user_id": user.id,
+            "email": user.email,
+            "message": f"用户 {user.email} 的密码已重置，所有登录会话已清除"
+        }
+    except ValueError as e:
+        if str(e) == "user_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="user_not_found"
+            )
+        raise
 
 
 @router.delete("/users/{user_id}")

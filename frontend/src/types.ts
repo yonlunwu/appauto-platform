@@ -17,7 +17,6 @@ export interface TestRunForm {
   concurrency?: number | string;
   loop: number;
   warmup: boolean;
-  auto_concurrency: boolean;
   execution_mode: "local" | "remote";
   scenario: "amaas" | "ft";
   ssh_config?: SSHConfig | null;
@@ -52,8 +51,6 @@ export interface TestRunResponse {
   task_id: number;
   status: string;
   concurrency: number;
-  auto_concurrency: boolean;
-  concurrency_details?: Record<string, unknown> | null;
 }
 
 export interface TaskSummary {
@@ -81,15 +78,6 @@ export interface TaskListResponse {
   page: number;
   page_size: number;
   total_pages: number;
-}
-
-export interface ConcurrencyProbeResponse {
-  suggested: number;
-  engine_baseline: number;
-  normalized_ctx: number;
-  estimated_latency: number;
-  method: string;
-  model: string;
 }
 
 export interface AuthResponse {

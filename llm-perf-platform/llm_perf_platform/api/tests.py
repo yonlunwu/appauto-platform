@@ -10,8 +10,6 @@ from llm_perf_platform.api.schemas import (
     ArchiveRequest,
     ArchiveResponse,
     CancelTaskResponse,
-    ConcurrencyProbeRequest,
-    ConcurrencyProbeResponse,
     DeleteTaskResponse,
     HardwareInfoCollectRequest,
     HardwareInfoCollectResponse,
@@ -30,7 +28,6 @@ from llm_perf_platform.api.schemas import (
 from llm_perf_platform.executor.logger import LOG_DIR
 from llm_perf_platform.models.db import get_session
 from llm_perf_platform.models.user_account import UserAccount
-from llm_perf_platform.services.concurrency import ConcurrencyService
 from llm_perf_platform.services.task_service import TaskService
 from llm_perf_platform.storage.results import ResultStorage
 from llm_perf_platform.tasks.scheduler import task_scheduler
@@ -38,7 +35,6 @@ from llm_perf_platform.tasks.scheduler import task_scheduler
 router = APIRouter(prefix="/tests")
 
 task_service = TaskService()
-concurrency_service = ConcurrencyService()
 result_storage = ResultStorage()
 
 
@@ -51,27 +47,7 @@ def run_test(request: TestRunRequest, current_user = Depends(get_current_user)):
             detail="SSH configuration is required for remote execution mode. Please configure SSH connection or switch to local mode."
         )
 
-    concurrency_details: Dict[str, Any] | None = None
-    resolved_concurrency = request.concurrency
-
-    if request.auto_concurrency or not resolved_concurrency:
-        ssh_config_for_probe = None
-        if request.ssh_config:
-            ssh_config_for_probe = request.ssh_config.model_dump()
-
-        concurrency_details = concurrency_service.estimate(
-            engine=request.engine,
-            model=request.model,
-            input_length=request.input_length,
-            output_length=request.output_length,
-            ssh_config=ssh_config_for_probe,
-        )
-        resolved_concurrency = concurrency_details["suggested"]
-
     parameters = request.model_dump()
-    parameters["concurrency"] = resolved_concurrency
-    if concurrency_details:
-        parameters["concurrency_details"] = concurrency_details
 
     ssh_config_dict = None
     if request.ssh_config:
@@ -93,7 +69,7 @@ def run_test(request: TestRunRequest, current_user = Depends(get_current_user)):
         "model": request.model,
         "input_length": request.input_length,
         "output_length": request.output_length,
-        "concurrency": resolved_concurrency,
+        "concurrency": request.concurrency,
         "loop": request.loop,
         "warmup": request.warmup,
         "execution_mode": request.execution_mode,
@@ -120,9 +96,7 @@ def run_test(request: TestRunRequest, current_user = Depends(get_current_user)):
     return TestRunResponse(
         task_id=record.id,
         status=record.status,
-        concurrency=resolved_concurrency,
-        auto_concurrency=request.auto_concurrency,
-        concurrency_details=concurrency_details,
+        concurrency=request.concurrency,
     )
 
 
@@ -474,21 +448,6 @@ def collect_hardware_info(request: HardwareInfoCollectRequest, current_user = De
         task_id=record.id,
         status=record.status,
         message=f"Hardware info collection task {record.id} has been submitted"
-    )
-
-
-@router.post("/concurrency/probe", response_model=ConcurrencyProbeResponse)
-def probe_concurrency(request: ConcurrencyProbeRequest):
-    ssh_config_dict = None
-    if request.ssh_config:
-        ssh_config_dict = request.ssh_config.dict()
-
-    return concurrency_service.estimate(
-        engine=request.engine,
-        model=request.model,
-        input_length=request.input_length,
-        output_length=request.output_length,
-        ssh_config=ssh_config_dict,
     )
 
 
