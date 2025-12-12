@@ -1,0 +1,440 @@
+:root {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Dark theme (default) */
+  --bg-primary: #0f172a;
+  --bg-secondary: rgba(15, 23, 42, 0.8);
+  --bg-tertiary: rgba(15, 23, 42, 0.6);
+  --bg-input: rgba(15, 23, 42, 0.6);
+  --bg-input-focus: rgba(15, 23, 42, 0.8);
+  --bg-gradient-start: #312e81;
+  --bg-gradient-end: #0f172a;
+  --bg-section: rgba(51, 65, 85, 0.3);
+
+  --text-primary: #e2e8f0;
+  --text-secondary: #cbd5f5;
+  --text-tertiary: #94a3b8;
+  --text-muted: rgba(148, 163, 184, 0.8);
+  --text-placeholder: rgba(148, 163, 184, 0.6);
+
+  --border-primary: rgba(148, 163, 184, 0.2);
+  --border-secondary: rgba(148, 163, 184, 0.4);
+  --border-focus: #6366f1;
+
+  --accent-primary: #6366f1;
+  --accent-hover: #5558e3;
+  --accent-light: #a5b4fc;
+  --accent-secondary: #38bdf8;
+
+  --success-color: #4ade80;
+  --error-color: #f97316;
+  --danger-color: #f87171;
+  --warning-color: #fbbf24;
+  --info-color: #bae6fd;
+
+  --shadow-primary: 0 10px 30px rgba(15, 23, 42, 0.4);
+  --shadow-secondary: 0 25px 50px rgba(15, 23, 42, 0.6);
+
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light theme */
+:root[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --bg-input: #ffffff;
+  --bg-input-focus: #ffffff;
+  --bg-gradient-start: #e0e7ff;
+  --bg-gradient-end: #f8fafc;
+  --bg-section: #f1f5f9;
+
+  --text-primary: #1e293b;
+  --text-secondary: #334155;
+  --text-tertiary: #64748b;
+  --text-muted: #64748b;
+  --text-placeholder: #94a3b8;
+
+  --border-primary: #e2e8f0;
+  --border-secondary: #cbd5e1;
+  --border-focus: #6366f1;
+
+  --accent-primary: #6366f1;
+  --accent-hover: #5558e3;
+  --accent-light: #818cf8;
+  --accent-secondary: #0ea5e9;
+
+  --success-color: #22c55e;
+  --error-color: #f97316;
+  --danger-color: #ef4444;
+  --warning-color: #f59e0b;
+  --info-color: #0ea5e9;
+
+  --shadow-primary: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadow-secondary: 0 25px 50px rgba(0, 0, 0, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.cover-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 60px;
+  background: radial-gradient(circle at top left, var(--bg-gradient-start), var(--bg-gradient-end));
+  color: var(--text-primary);
+  gap: 48px;
+}
+
+.hero {
+  max-width: 520px;
+}
+
+.hero .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 12px;
+  color: var(--accent-light);
+}
+
+.hero h1 {
+  font-size: 48px;
+  margin: 12px 0;
+}
+
+.hero .subhead {
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.cover-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.auth-card {
+  width: 360px;
+  padding: 32px;
+  border-radius: 24px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: var(--shadow-secondary);
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-primary);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px 16px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+input {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  background: var(--bg-input-focus);
+}
+
+input::placeholder {
+  color: var(--text-placeholder);
+}
+
+select {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: pointer;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  background: var(--bg-input-focus);
+}
+
+.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+small {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+button {
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: var(--accent-primary);
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s, transform 0.1s;
+}
+
+button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--border-secondary);
+}
+
+.link {
+  background: none;
+  color: var(--accent-secondary);
+  padding: 0;
+}
+
+.link.danger {
+  color: var(--danger-color);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-primary);
+  text-align: left;
+}
+
+th {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 10px;
+}
+
+.hint {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--info-color);
+}
+
+.success {
+  margin-top: 12px;
+  color: var(--success-color);
+}
+
+.error {
+  margin-top: 12px;
+  color: var(--error-color);
+}
+
+.ssh-config-section {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: var(--bg-section);
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+}
+
+.ssh-config-section h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 18px;
+  color: var(--accent-light);
+}
+
+/* 标签页样式 */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.tab {
+  padding: 12px 24px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab:hover {
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.tab.active {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+}
+
+/* 主题切换按钮 */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 20px;
+}
+
+.theme-toggle:hover {
+  background: var(--border-secondary);
+  transform: translateY(-1px);
+}
+
+/* 状态标签 */
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-queued {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--text-tertiary);
+}
+
+.status-running {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.status-completed {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--success-color);
+}
+
+.status-failed {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger-color);
+}
+
+.status-cancelled {
+  background: rgba(251, 191, 36, 0.2);
+  color: var(--warning-color);
+}
+
+.status-archived {
+  background: rgba(100, 116, 139, 0.2);
+  color: var(--text-muted);
+}
+
+/* 任务表格样式 */
+.tasks-table {
+  font-size: 14px;
+}
+
+.tasks-table th {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+.tasks-table tbody tr {
+  transition: background 0.15s;
+}
+
+.tasks-table tbody tr:hover {
+  background: var(--bg-tertiary);
+}

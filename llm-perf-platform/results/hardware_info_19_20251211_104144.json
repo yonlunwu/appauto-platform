@@ -1,0 +1,99 @@
+{
+  "gpus": [
+    {
+      "index": 0,
+      "name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.95.05",
+      "memory_total_mb": 49140,
+      "memory_free_mb": 1850,
+      "memory_used_mb": 46659,
+      "temperature_c": 28,
+      "utilization_percent": 0
+    },
+    {
+      "index": 1,
+      "name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.95.05",
+      "memory_total_mb": 49140,
+      "memory_free_mb": 9292,
+      "memory_used_mb": 39217,
+      "temperature_c": 27,
+      "utilization_percent": 0
+    },
+    {
+      "index": 2,
+      "name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.95.05",
+      "memory_total_mb": 49140,
+      "memory_free_mb": 9292,
+      "memory_used_mb": 39217,
+      "temperature_c": 28,
+      "utilization_percent": 0
+    },
+    {
+      "index": 3,
+      "name": "NVIDIA GeForce RTX 4090",
+      "driver_version": "580.95.05",
+      "memory_total_mb": 49140,
+      "memory_free_mb": 48508,
+      "memory_used_mb": 1,
+      "temperature_c": 28,
+      "utilization_percent": 0
+    }
+  ],
+  "cpu_cores": 128,
+  "cpu_model": "Intel(R) Xeon(R) Gold 6454S",
+  "cpu_arch": "x86_64",
+  "memory_total_gb": 1007.56,
+  "memory_used_gb": 66.73,
+  "memory_free_gb": 9.9,
+  "memory_available_gb": 934.33,
+  "disks": [
+    {
+      "device": "/dev/mapper/ubuntu--vg-ubuntu--lv",
+      "size": "437G",
+      "used": "183G",
+      "available": "232G",
+      "use_percent": "45%",
+      "mount_point": "/"
+    },
+    {
+      "device": "/dev/sda2",
+      "size": "2.0G",
+      "used": "807M",
+      "available": "1022M",
+      "use_percent": "45%",
+      "mount_point": "/boot"
+    },
+    {
+      "device": "/dev/sda1",
+      "size": "1.1G",
+      "used": "6.1M",
+      "available": "1.1G",
+      "use_percent": "1%",
+      "mount_point": "/boot/efi"
+    },
+    {
+      "device": "/dev/nvme0n1",
+      "size": "3.5T",
+      "used": "3.2T",
+      "available": "124G",
+      "use_percent": "97%",
+      "mount_point": "/mnt/data"
+    }
+  ],
+  "os": {
+    "name": "Ubuntu 22.04.5 LTS",
+    "kernel_version": "5.15.0-160-generic",
+    "hostname": "qujing4"
+  },
+  "network": {
+    "primary_ip": "192.168.110.4"
+  },
+  "metadata": {
+    "collection_time": "2025-12-11T02:41:44.565719",
+    "task_id": 19,
+    "display_id": 19,
+    "remote_host": "192.168.110.4"
+  }
+}
