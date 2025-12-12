@@ -46,7 +46,7 @@ def run_basic_test(request: BasicTestRequest):
     # 构建执行payload
     payload = {
         "task_id": record.id,
-        "command_type": TaskType.PYTEST.value,
+        "task_type": TaskType.PYTEST.value,  # 修复：使用 task_type 而不是 command_type
         "scenario": request.scenario,
         "ssh_config": ssh_config_dict,
         "testpaths": request.testpaths,
@@ -58,6 +58,7 @@ def run_basic_test(request: BasicTestRequest):
         "report_server": request.report_server,
         "report_url": request.report_url,
         "pytest_args": request.pytest_args,
+        "appauto_branch": request.appauto_branch if hasattr(request, 'appauto_branch') else "main",
     }
 
     # 提交任务
