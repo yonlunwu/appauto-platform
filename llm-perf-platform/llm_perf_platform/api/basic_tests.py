@@ -2,13 +2,15 @@
 
 提供基础测试（pytest）的 API 接口
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from llm_perf_platform.api.auth import get_current_user
 from llm_perf_platform.api.schemas import (
     BasicTestRequest,
     BasicTestResponse,
 )
 from llm_perf_platform.executor.base_executor import TaskType
+from llm_perf_platform.models.user_account import UserAccount
 from llm_perf_platform.services.task_service import TaskService
 from llm_perf_platform.tasks.scheduler import task_scheduler
 
@@ -18,7 +20,7 @@ task_service = TaskService()
 
 
 @router.post("/run", response_model=BasicTestResponse)
-def run_basic_test(request: BasicTestRequest):
+def run_basic_test(request: BasicTestRequest, current_user: UserAccount = Depends(get_current_user)):
     """运行基础测试（pytest）
 
     Args:
@@ -41,6 +43,8 @@ def run_basic_test(request: BasicTestRequest):
         parameters=parameters,
         status="queued",
         ssh_config=ssh_config_dict,
+        user_id=current_user.id,
+        appauto_branch=request.appauto_branch if hasattr(request, 'appauto_branch') else "main",
     )
 
     # 构建执行payload

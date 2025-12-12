@@ -219,7 +219,7 @@ function App() {
       const data = await fetchTasks({
         page: currentPage,
         page_size: pageSize,
-        task_type: "perf_test"
+        // 移除 task_type 过滤，加载所有任务（包括 pytest 和 perf_test）
       });
       setTasks(data.items);
       setTotalTasks(data.total);
@@ -1162,7 +1162,7 @@ function App() {
 
                   const result = await response.json();
                   setMessage(`基础测试已提交！任务 ID: ${result.task_id}`);
-                  await fetchTasks();
+                  await loadTasks();
                 } catch (err: any) {
                   setError(err.message || "测试启动失败");
                 } finally {
