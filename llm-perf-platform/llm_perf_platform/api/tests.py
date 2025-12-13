@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 import math
 
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from fastapi.responses import FileResponse
+from openpyxl import load_workbook
 
 from llm_perf_platform.api.auth import get_current_user
 from llm_perf_platform.api.schemas import (
@@ -691,3 +692,74 @@ def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) 
             detail=f"Error getting branches: {str(e)}"
         )
 
+
+@router.get("/{task_id}/preview")
+def preview_result(task_id: int, current_user = Depends(get_current_user)):
+    """预览测试结果的Excel数据
+    
+    返回JSON格式的数据，包含：
+    - parameters: 测试参数
+    - summary: 汇总指标
+    - requests: 请求详情（可选，用于详细分析）
+    """
+    # 获取任务记录
+    record = task_service.get_task(task_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    # 检查结果文件是否存在
+    if not record.result_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 没有生成结果文件，可能尚未完成或执行失败"
+        )
+
+    result_path = Path(record.result_path)
+    if not result_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"结果文件不存在：{record.result_path}（文件可能已被删除或移动）"
+        )
+
+    try:
+        # 解析Excel文件 - 通用方式，直接展示所有工作表的原始内容
+        wb = load_workbook(result_path, read_only=True, data_only=True)
+
+        sheets = []
+        max_preview_rows = 100  # 每个工作表最多预览100行
+
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows = []
+
+            # 读取工作表数据
+            for i, row in enumerate(ws.iter_rows(values_only=True)):
+                if i >= max_preview_rows:
+                    break
+                # 将 None 转换为空字符串，数字保持原样
+                row_data = [cell if cell is not None else "" for cell in row]
+                rows.append(row_data)
+
+            if rows:  # 只添加非空工作表
+                sheets.append({
+                    "name": sheet_name,
+                    "rows": rows,
+                    "total_rows": ws.max_row,
+                    "is_truncated": ws.max_row > max_preview_rows
+                })
+
+        wb.close()
+
+        return {
+            "task_id": task_id,
+            "sheets": sheets,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"解析 Excel 文件失败：{str(e)}"
+        )

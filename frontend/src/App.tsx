@@ -25,6 +25,7 @@ import {
   resetUserPassword,
   deleteUser,
   batchDeleteUsers,
+  previewResult,
   UserInfo,
 } from "./api";
 import {
@@ -94,6 +95,12 @@ function App() {
   const [currentLogs, setCurrentLogs] = useState<string>("");
   const [logsTaskId, setLogsTaskId] = useState<number | null>(null);
   const logsTaskIdRef = useRef<number | null>(null);
+
+  // Preview modal state
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [currentSheetIndex, setCurrentSheetIndex] = useState(0);
 
   // Password visibility state
   const [showPassword, setShowPassword] = useState({
@@ -696,6 +703,24 @@ function App() {
     }
   }
 
+  async function handlePreview(taskId: number) {
+    setError(null);
+    setPreviewLoading(true);
+    setShowPreviewModal(true);
+    setPreviewData(null);
+    setCurrentSheetIndex(0);
+
+    try {
+      const response = await previewResult(taskId);
+      setPreviewData(response);
+    } catch (err) {
+      // 在弹窗中显示错误，不要立即关闭
+      setPreviewData({ error: err instanceof Error ? err.message : "获取预览数据失败" });
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   async function handleRetry(taskId: number) {
     setError(null);
     setMessage(null);
@@ -1282,6 +1307,15 @@ function App() {
                             }
                           >
                             下载
+                          </button>
+                        )}
+                        {task.result_path && (
+                          <button
+                            className="secondary"
+                            onClick={() => handlePreview(task.id)}
+                            style={{ color: "#17a2b8" }}
+                          >
+                            预览
                           </button>
                         )}
                         {task.result_path && !task.archived_path && (
@@ -2852,6 +2886,15 @@ function App() {
                                 下载
                               </button>
                             )}
+                            {task.result_path && (
+                              <button
+                                className="secondary"
+                                onClick={() => handlePreview(task.id)}
+                                style={{ color: "#17a2b8" }}
+                              >
+                                预览
+                              </button>
+                            )}
                             {task.result_path && !task.archived_path && (
                               <button
                                 className="secondary"
@@ -3180,6 +3223,15 @@ function App() {
                               }
                             >
                               下载
+                            </button>
+                          )}
+                          {task.result_path && (
+                            <button
+                              className="secondary"
+                              onClick={() => handlePreview(task.id)}
+                              style={{ color: "#17a2b8" }}
+                            >
+                              预览
                             </button>
                           )}
                           <button
@@ -3688,6 +3740,223 @@ function App() {
             )}
           </section>
         </>
+      )}
+
+      {/* 预览结果模态框 */}
+      {showPreviewModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowPreviewModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: theme === "dark" ? "#2a2a2a" : "white",
+              padding: "2rem",
+              borderRadius: "8px",
+              maxWidth: "95%",
+              maxHeight: "90%",
+              overflow: "auto",
+              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+              minWidth: "800px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <h2 style={{ margin: 0, color: theme === "dark" ? "#f0f0f0" : "#1a1a1a", fontSize: "1.5rem" }}>
+                性能测试结果预览
+              </h2>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                style={{
+                  padding: "0.5rem 1rem",
+                  cursor: "pointer",
+                  border: "1px solid #d0d0d0",
+                  borderRadius: "4px",
+                  backgroundColor: "#f8f9fa",
+                  color: "#333",
+                  fontWeight: "500",
+                }}
+              >
+                关闭
+              </button>
+            </div>
+
+            {previewLoading ? (
+              <div style={{ textAlign: "center", padding: "3rem", color: theme === "dark" ? "#ccc" : "#666" }}>
+                <p>加载中...</p>
+              </div>
+            ) : previewData && previewData.error ? (
+              <div style={{
+                textAlign: "center",
+                padding: "3rem",
+                backgroundColor: theme === "dark" ? "#2a1a1a" : "#fff5f5",
+                borderRadius: "8px",
+                border: `1px solid ${theme === "dark" ? "#5a2a2a" : "#ffcccc"}`,
+              }}>
+                <div style={{
+                  fontSize: "3rem",
+                  marginBottom: "1rem",
+                  color: theme === "dark" ? "#ff6b6b" : "#dc3545",
+                }}>
+                  ⚠️
+                </div>
+                <h3 style={{
+                  color: theme === "dark" ? "#ff6b6b" : "#dc3545",
+                  marginBottom: "1rem",
+                  fontSize: "1.25rem",
+                }}>
+                  无法加载预览数据
+                </h3>
+                <p style={{
+                  color: theme === "dark" ? "#ccc" : "#666",
+                  marginBottom: "1.5rem",
+                  lineHeight: "1.6",
+                }}>
+                  {previewData.error}
+                </p>
+                <div style={{
+                  padding: "1rem",
+                  backgroundColor: theme === "dark" ? "#1a1a1a" : "#f8f9fa",
+                  borderRadius: "4px",
+                  fontSize: "0.875rem",
+                  color: theme === "dark" ? "#999" : "#666",
+                  textAlign: "left",
+                  maxWidth: "600px",
+                  margin: "0 auto",
+                }}>
+                  <p style={{ marginBottom: "0.5rem", fontWeight: "600" }}>可能的原因：</p>
+                  <ul style={{ margin: 0, paddingLeft: "1.5rem" }}>
+                    <li>结果文件不存在或已被删除</li>
+                    <li>任务尚未完成或执行失败</li>
+                    <li>文件格式不正确</li>
+                  </ul>
+                </div>
+              </div>
+            ) : previewData && previewData.sheets && previewData.sheets.length > 0 ? (
+              <div>
+                {/* 工作表标签（如果有多个工作表） */}
+                {previewData.sheets.length > 1 && (
+                  <div style={{
+                    display: "flex",
+                    gap: "0.5rem",
+                    marginBottom: "1.5rem",
+                    borderBottom: `1px solid ${theme === "dark" ? "#333" : "#e0e0e0"}`,
+                  }}>
+                    {previewData.sheets.map((sheet: any, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentSheetIndex(idx)}
+                        style={{
+                          padding: "0.75rem 1.5rem",
+                          border: "none",
+                          borderBottom: currentSheetIndex === idx ? `2px solid ${theme === "dark" ? "#4fc3f7" : "#007bff"}` : "2px solid transparent",
+                          backgroundColor: "transparent",
+                          color: currentSheetIndex === idx
+                            ? (theme === "dark" ? "#4fc3f7" : "#007bff")
+                            : (theme === "dark" ? "#999" : "#666"),
+                          fontWeight: currentSheetIndex === idx ? "600" : "normal",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        {sheet.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 当前工作表内容 */}
+                {previewData.sheets[currentSheetIndex] && (
+                  <div>
+                    {/* 提示信息 */}
+                    {previewData.sheets[currentSheetIndex].is_truncated && (
+                      <div style={{
+                        padding: "0.75rem 1rem",
+                        marginBottom: "1rem",
+                        backgroundColor: theme === "dark" ? "#2a2a00" : "#fff3cd",
+                        border: `1px solid ${theme === "dark" ? "#4a4a00" : "#ffc107"}`,
+                        borderRadius: "4px",
+                        color: theme === "dark" ? "#ffeb3b" : "#856404",
+                        fontSize: "0.875rem",
+                      }}>
+                        显示前 {previewData.sheets[currentSheetIndex].rows.length} 行，共 {previewData.sheets[currentSheetIndex].total_rows} 行
+                      </div>
+                    )}
+
+                    {/* 表格 */}
+                    <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "60vh" }}>
+                      <table style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "0.875rem",
+                      }}>
+                        <tbody>
+                          {previewData.sheets[currentSheetIndex].rows.map((row: any[], rowIdx: number) => (
+                            <tr
+                              key={rowIdx}
+                              style={{
+                                backgroundColor: rowIdx === 0
+                                  ? (theme === "dark" ? "#1a1a1a" : "#f8f9fa")
+                                  : (rowIdx % 2 === 0 ? (theme === "dark" ? "#252525" : "white") : "transparent"),
+                                borderBottom: `1px solid ${theme === "dark" ? "#333" : "#e0e0e0"}`,
+                              }}
+                            >
+                              {row.map((cell: any, cellIdx: number) => {
+                                const isHeader = rowIdx === 0;
+                                const Tag = isHeader ? "th" : "td";
+                                return (
+                                  <Tag
+                                    key={cellIdx}
+                                    style={{
+                                      padding: "0.75rem",
+                                      textAlign: "left",
+                                      color: isHeader
+                                        ? (theme === "dark" ? "#f0f0f0" : "#333")
+                                        : (theme === "dark" ? "#ccc" : "#666"),
+                                      fontWeight: isHeader ? "600" : "normal",
+                                      whiteSpace: "nowrap",
+                                      borderRight: `1px solid ${theme === "dark" ? "#333" : "#e0e0e0"}`,
+                                    }}
+                                  >
+                                    {typeof cell === "number"
+                                      ? (Number.isInteger(cell) ? cell : cell.toFixed(4))
+                                      : String(cell)}
+                                  </Tag>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "3rem", color: theme === "dark" ? "#ccc" : "#666" }}>
+                <p>无预览数据</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* 日志查看模态框 */}

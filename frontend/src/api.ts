@@ -146,6 +146,16 @@ export function retryTask(taskId: number): Promise<{
   });
 }
 
+export function previewResult(taskId: number): Promise<{
+  task_id: number;
+  parameters: Record<string, any>;
+  summary: Record<string, any>;
+  requests_preview: Array<Record<string, any>>;
+  total_requests: number;
+}> {
+  return request(`/tests/${taskId}/preview`);
+}
+
 export function registerUser(payload: {
   email: string;
   password: string;
