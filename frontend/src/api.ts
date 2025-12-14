@@ -146,13 +146,27 @@ export function retryTask(taskId: number): Promise<{
   });
 }
 
-export function previewResult(taskId: number): Promise<{
+export interface ChartData {
+  concurrency_levels: number[];
+  ttft_values: number[];
+  tps_values: number[];
+  has_multiple_concurrency: boolean;
+}
+
+export interface PreviewSheet {
+  name: string;
+  rows: Array<any[]>;
+  total_rows: number;
+  is_truncated: boolean;
+}
+
+export interface PreviewResultResponse {
   task_id: number;
-  parameters: Record<string, any>;
-  summary: Record<string, any>;
-  requests_preview: Array<Record<string, any>>;
-  total_requests: number;
-}> {
+  sheets: PreviewSheet[];
+  chart_data?: ChartData | null;
+}
+
+export function previewResult(taskId: number): Promise<PreviewResultResponse> {
   return request(`/tests/${taskId}/preview`);
 }
 

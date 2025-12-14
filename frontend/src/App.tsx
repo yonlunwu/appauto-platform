@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+import {
   API_BASE,
   archiveTask,
   cancelTask,
@@ -28,6 +39,17 @@ import {
   previewResult,
   UserInfo,
 } from "./api";
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 import {
   ModelInfo,
   Profile,
@@ -3947,6 +3969,186 @@ function App() {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* 性能图表 */}
+                    {previewData.chart_data && (
+                      <div style={{ marginTop: "2rem" }}>
+                        <h3 style={{
+                          color: theme === "dark" ? "#f0f0f0" : "#1a1a1a",
+                          marginBottom: "1.5rem",
+                          fontSize: "1.25rem",
+                        }}>
+                          性能图表
+                        </h3>
+
+                        {!previewData.chart_data.has_multiple_concurrency ? (
+                          <div style={{
+                            padding: "1.5rem",
+                            backgroundColor: theme === "dark" ? "#2a2a00" : "#fff3cd",
+                            border: `1px solid ${theme === "dark" ? "#4a4a00" : "#ffc107"}`,
+                            borderRadius: "4px",
+                            color: theme === "dark" ? "#ffeb3b" : "#856404",
+                            fontSize: "0.875rem",
+                          }}>
+                            此任务仅包含单一并发度（Concurrency = {previewData.chart_data.concurrency_levels[0]}），无法生成并发度对比图表。
+                          </div>
+                        ) : (
+                          <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: "1.5rem"
+                          }}>
+                            {/* Concurrency vs TTFT 图表 */}
+                            <div>
+                              <h4 style={{
+                                color: theme === "dark" ? "#ccc" : "#666",
+                                marginBottom: "1rem",
+                                fontSize: "1rem",
+                              }}>
+                                并发度 vs TTFT (Time to first token)
+                              </h4>
+                              <div style={{
+                                backgroundColor: theme === "dark" ? "#1a1a1a" : "white",
+                                padding: "1.5rem",
+                                borderRadius: "8px",
+                                border: `1px solid ${theme === "dark" ? "#333" : "#e0e0e0"}`,
+                              }}>
+                                <Line
+                                  data={{
+                                    labels: previewData.chart_data.concurrency_levels.map(String),
+                                    datasets: [
+                                      {
+                                        label: "平均 TTFT (秒)",
+                                        data: previewData.chart_data.ttft_values,
+                                        borderColor: theme === "dark" ? "#4fc3f7" : "#007bff",
+                                        backgroundColor: theme === "dark" ? "rgba(79, 195, 247, 0.2)" : "rgba(0, 123, 255, 0.2)",
+                                        tension: 0.1,
+                                      },
+                                    ],
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: true,
+                                    plugins: {
+                                      legend: {
+                                        labels: {
+                                          color: theme === "dark" ? "#ccc" : "#666",
+                                        },
+                                      },
+                                      title: {
+                                        display: false,
+                                      },
+                                    },
+                                    scales: {
+                                      x: {
+                                        title: {
+                                          display: true,
+                                          text: "并发度 (Concurrency)",
+                                          color: theme === "dark" ? "#ccc" : "#666",
+                                        },
+                                        ticks: {
+                                          color: theme === "dark" ? "#999" : "#666",
+                                        },
+                                        grid: {
+                                          color: theme === "dark" ? "#333" : "#e0e0e0",
+                                        },
+                                      },
+                                      y: {
+                                        title: {
+                                          display: true,
+                                          text: "平均 TTFT (秒)",
+                                          color: theme === "dark" ? "#ccc" : "#666",
+                                        },
+                                        ticks: {
+                                          color: theme === "dark" ? "#999" : "#666",
+                                        },
+                                        grid: {
+                                          color: theme === "dark" ? "#333" : "#e0e0e0",
+                                        },
+                                      },
+                                    },
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Concurrency vs TPS 图表 */}
+                            <div>
+                              <h4 style={{
+                                color: theme === "dark" ? "#ccc" : "#666",
+                                marginBottom: "1rem",
+                                fontSize: "1rem",
+                              }}>
+                                并发度 vs TPS (Token per second)
+                              </h4>
+                              <div style={{
+                                backgroundColor: theme === "dark" ? "#1a1a1a" : "white",
+                                padding: "1.5rem",
+                                borderRadius: "8px",
+                                border: `1px solid ${theme === "dark" ? "#333" : "#e0e0e0"}`,
+                              }}>
+                                <Line
+                                  data={{
+                                    labels: previewData.chart_data.concurrency_levels.map(String),
+                                    datasets: [
+                                      {
+                                        label: "平均 TPS (tokens/s)",
+                                        data: previewData.chart_data.tps_values,
+                                        borderColor: theme === "dark" ? "#66bb6a" : "#28a745",
+                                        backgroundColor: theme === "dark" ? "rgba(102, 187, 106, 0.2)" : "rgba(40, 167, 69, 0.2)",
+                                        tension: 0.1,
+                                      },
+                                    ],
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: true,
+                                    plugins: {
+                                      legend: {
+                                        labels: {
+                                          color: theme === "dark" ? "#ccc" : "#666",
+                                        },
+                                      },
+                                      title: {
+                                        display: false,
+                                      },
+                                    },
+                                    scales: {
+                                      x: {
+                                        title: {
+                                          display: true,
+                                          text: "并发度 (Concurrency)",
+                                          color: theme === "dark" ? "#ccc" : "#666",
+                                        },
+                                        ticks: {
+                                          color: theme === "dark" ? "#999" : "#666",
+                                        },
+                                        grid: {
+                                          color: theme === "dark" ? "#333" : "#e0e0e0",
+                                        },
+                                      },
+                                      y: {
+                                        title: {
+                                          display: true,
+                                          text: "平均 TPS (tokens/s)",
+                                          color: theme === "dark" ? "#ccc" : "#666",
+                                        },
+                                        ticks: {
+                                          color: theme === "dark" ? "#999" : "#666",
+                                        },
+                                        grid: {
+                                          color: theme === "dark" ? "#333" : "#e0e0e0",
+                                        },
+                                      },
+                                    },
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

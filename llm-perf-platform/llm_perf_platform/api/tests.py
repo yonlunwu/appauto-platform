@@ -693,10 +693,102 @@ def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) 
         )
 
 
+def extract_chart_data(all_rows: List[tuple]) -> Dict[str, Any] | None:
+    """从Excel横向表格中提取图表数据
+
+    Args:
+        all_rows: Excel的所有行数据
+
+    Returns:
+        图表数据字典，包含:
+        - concurrency_levels: 并发度列表
+        - ttft_values: 各并发度的平均TTFT
+        - tps_values: 各并发度的平均TPS
+        - has_multiple_concurrency: 是否有多个并发度
+        如果无法提取则返回None
+    """
+    if len(all_rows) < 2:
+        return None
+
+    # 第一行是表头
+    headers = all_rows[0]
+    if not headers:
+        return None
+
+    # 查找需要的列索引
+    try:
+        concurrency_idx = None
+        ttft_idx = None
+        tps_idx = None
+
+        for i, header in enumerate(headers):
+            if header == "Concurrency":
+                concurrency_idx = i
+            elif header == "Average time to first token (s)":
+                ttft_idx = i
+            elif header == "单轮次 Avg TPS":
+                tps_idx = i
+
+        # 检查是否找到所有必需的列
+        if concurrency_idx is None or ttft_idx is None or tps_idx is None:
+            return None
+
+        # 按并发度分组收集数据
+        concurrency_data = {}  # {concurrency: {"ttft": [...], "tps": [...]}}
+
+        for row in all_rows[1:]:  # 跳过表头
+            if len(row) <= max(concurrency_idx, ttft_idx, tps_idx):
+                continue
+
+            try:
+                concurrency = int(row[concurrency_idx]) if row[concurrency_idx] else None
+                ttft = float(row[ttft_idx]) if row[ttft_idx] is not None and row[ttft_idx] != "" else None
+                tps = float(row[tps_idx]) if row[tps_idx] is not None and row[tps_idx] != "" else None
+
+                if concurrency is not None and ttft is not None and tps is not None:
+                    if concurrency not in concurrency_data:
+                        concurrency_data[concurrency] = {"ttft": [], "tps": []}
+
+                    concurrency_data[concurrency]["ttft"].append(ttft)
+                    concurrency_data[concurrency]["tps"].append(tps)
+            except (ValueError, TypeError):
+                continue
+
+        # 如果没有有效数据
+        if not concurrency_data:
+            return None
+
+        # 计算每个并发度的平均值
+        concurrency_levels = sorted(concurrency_data.keys())
+        ttft_values = []
+        tps_values = []
+
+        for concurrency in concurrency_levels:
+            ttft_list = concurrency_data[concurrency]["ttft"]
+            tps_list = concurrency_data[concurrency]["tps"]
+
+            # 计算平均值
+            avg_ttft = sum(ttft_list) / len(ttft_list) if ttft_list else 0
+            avg_tps = sum(tps_list) / len(tps_list) if tps_list else 0
+
+            ttft_values.append(round(avg_ttft, 4))
+            tps_values.append(round(avg_tps, 2))
+
+        return {
+            "concurrency_levels": concurrency_levels,
+            "ttft_values": ttft_values,
+            "tps_values": tps_values,
+            "has_multiple_concurrency": len(concurrency_levels) > 1
+        }
+
+    except Exception:
+        return None
+
+
 @router.get("/{task_id}/preview")
 def preview_result(task_id: int, current_user = Depends(get_current_user)):
     """预览测试结果的Excel数据
-    
+
     返回JSON格式的数据，包含：
     - parameters: 测试参数
     - summary: 汇总指标
@@ -729,19 +821,21 @@ def preview_result(task_id: int, current_user = Depends(get_current_user)):
         wb = load_workbook(result_path, read_only=True, data_only=True)
 
         sheets = []
+        chart_data = None  # 图表数据
         max_preview_rows = 100  # 每个工作表最多预览100行
 
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]
             rows = []
+            all_rows = []  # 用于图表数据提取，读取所有行
 
             # 读取工作表数据
             for i, row in enumerate(ws.iter_rows(values_only=True)):
-                if i >= max_preview_rows:
-                    break
-                # 将 None 转换为空字符串，数字保持原样
                 row_data = [cell if cell is not None else "" for cell in row]
-                rows.append(row_data)
+                all_rows.append(row)  # 保存原始数据用于图表
+
+                if i < max_preview_rows:
+                    rows.append(row_data)
 
             if rows:  # 只添加非空工作表
                 sheets.append({
@@ -751,11 +845,16 @@ def preview_result(task_id: int, current_user = Depends(get_current_user)):
                     "is_truncated": ws.max_row > max_preview_rows
                 })
 
+            # 尝试提取图表数据（仅处理旧格式的横向表格）
+            if sheet_name == "Sheet" and len(all_rows) >= 2:
+                chart_data = extract_chart_data(all_rows)
+
         wb.close()
 
         return {
             "task_id": task_id,
             "sheets": sheets,
+            "chart_data": chart_data,
         }
 
     except Exception as e:
