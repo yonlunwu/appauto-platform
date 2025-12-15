@@ -76,7 +76,7 @@ class TaskRecord(SQLModel, table=True):
         description="SSH 远程执行配置（JSON 格式）"
     )
 
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="创建时间")
+    created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     completed_at: Optional[datetime] = Field(default=None, description="完成时间")
 
     @property

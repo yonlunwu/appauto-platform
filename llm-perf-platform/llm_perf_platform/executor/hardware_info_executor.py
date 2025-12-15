@@ -75,7 +75,7 @@ class HardwareInfoExecutor(BaseExecutor):
 
                 # 添加元数据
                 hardware_info["metadata"] = {
-                    "collection_time": datetime.utcnow().isoformat(),
+                    "collection_time": datetime.now().isoformat(),
                     "task_id": self.task_id,
                     "display_id": display_id,
                     "remote_host": ssh_config.get("host"),

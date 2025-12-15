@@ -82,10 +82,10 @@ class ModelInstance(SQLModel, table=True):
     health_check_failures: int = Field(default=0)  # 连续健康检查失败次数
 
     # 时间戳
-    created_at: datetime = Field(default_factory=datetime.utcnow)  # 创建时间
+    created_at: datetime = Field(default_factory=datetime.now)  # 创建时间
     started_at: Optional[datetime] = None  # 启动时间
     stopped_at: Optional[datetime] = None  # 停止时间
-    updated_at: datetime = Field(default_factory=datetime.utcnow)  # 更新时间
+    updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
 
     # 用户信息
     created_by: Optional[str] = None  # 创建者用户名
