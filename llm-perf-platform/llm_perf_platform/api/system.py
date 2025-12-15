@@ -115,11 +115,16 @@ def update_appauto(
         parameters={
             "operation": "update_appauto",
             "branch": request.branch,
+            "task_type": "system_maintenance",  # 添加 task_type 到 parameters
         },
         status="queued",
         user_id=current_user.id,
         task_type="system_maintenance",
     )
+
+    # 提交任务到调度器执行
+    from llm_perf_platform.tasks.scheduler import task_scheduler
+    task_scheduler.submit(record.id, record.parameters)
 
     return {
         "task_id": record.id,
