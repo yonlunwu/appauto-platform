@@ -293,6 +293,14 @@ function App() {
       const data = await getAppautoVersions();
       setAppautoVersions(data.versions);
       setAppautoPath(data.appauto_path);
+
+      // 自动选择第一个版本，如果当前选择的版本不在列表中
+      if (data.versions.length > 0) {
+        const branchExists = data.versions.some((v: any) => v.branch === updateBranch);
+        if (!branchExists) {
+          setUpdateBranch(data.versions[0].branch);
+        }
+      }
     } catch (err) {
       console.error(err);
       // If getting versions fails (e.g., not admin), silently fail
@@ -2199,6 +2207,8 @@ function App() {
                           debug: form.debug || false,
                           warmup: form.warmup,
                           keep_model: true,
+                          tp: form.model_tp || 1,
+                          appauto_branch: form.appauto_branch || "main",
                         };
 
                         const response = await runPerfTest(payload);
@@ -3407,13 +3417,22 @@ function App() {
             <div style={{ marginBottom: "2rem" }}>
               <h4>更新 Appauto</h4>
               <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-                <input
-                  type="text"
+                <select
                   value={updateBranch}
                   onChange={(e) => setUpdateBranch(e.target.value)}
-                  placeholder="分支名 (如: main, v3.3.1)"
                   style={{ flex: 1, padding: "0.5rem" }}
-                />
+                  disabled={appautoVersions.length === 0}
+                >
+                  {appautoVersions.length === 0 ? (
+                    <option value="">暂无可用版本</option>
+                  ) : (
+                    appautoVersions.map((v: any) => (
+                      <option key={v.branch} value={v.branch}>
+                        {v.branch}
+                      </option>
+                    ))
+                  )}
+                </select>
                 <button
                   className="secondary"
                   onClick={async () => {
@@ -3429,7 +3448,7 @@ function App() {
                       );
                     }
                   }}
-                  disabled={!updateBranch}
+                  disabled={!updateBranch || appautoVersions.length === 0}
                 >
                   更新
                 </button>
