@@ -80,6 +80,9 @@ def get_appauto_versions(current_user: UserAccount = Depends(get_admin_user)):
                     if appauto_bin.exists():
                         try:
                             import subprocess
+                            import logging
+                            logger = logging.getLogger(__name__)
+
                             result = subprocess.run(
                                 [str(appauto_bin), "--version"],
                                 capture_output=True,
@@ -88,8 +91,13 @@ def get_appauto_versions(current_user: UserAccount = Depends(get_admin_user)):
                             )
                             if result.returncode == 0:
                                 version_info.version = result.stdout.strip()
-                        except Exception:
-                            pass
+                                logger.info(f"获取 {branch} 版本成功: {version_info.version}")
+                            else:
+                                logger.warning(f"获取 {branch} 版本失败: returncode={result.returncode}, stderr={result.stderr}")
+                        except Exception as e:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.error(f"获取 {branch} 版本时出错: {e}")
 
                 versions.append(version_info)
 
