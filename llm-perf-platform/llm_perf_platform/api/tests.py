@@ -821,6 +821,26 @@ def preview_result(task_id: int, current_user = Depends(get_current_user)):
             detail=f"结果文件不存在：{record.result_path}（文件可能已被删除或移动）"
         )
 
+    # 检测文件类型
+    file_ext = result_path.suffix.lower()
+
+    # 如果是 JSON 文件
+    if file_ext == '.json':
+        try:
+            import json
+            with open(result_path, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+            return {
+                "task_id": task_id,
+                "file_type": "json",
+                "json_data": json_data,
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"解析 JSON 文件失败：{str(e)}"
+            )
+
     try:
         # 解析Excel文件 - 通用方式，直接展示所有工作表的原始内容
         wb = load_workbook(result_path, read_only=True, data_only=True)

@@ -4978,7 +4978,7 @@ function App() {
               }}
             >
               <h2 style={{ margin: 0, color: theme === "dark" ? "#f0f0f0" : "#1a1a1a", fontSize: "1.5rem" }}>
-                性能测试结果预览
+                {previewData && previewData.file_type === "json" ? "硬件信息预览" : "性能测试结果预览"}
               </h2>
               <button
                 onClick={() => setShowPreviewModal(false)}
@@ -5045,6 +5045,27 @@ function App() {
                     <li>任务尚未完成或执行失败</li>
                     <li>文件格式不正确</li>
                   </ul>
+                </div>
+              </div>
+            ) : previewData && previewData.file_type === "json" ? (
+              <div>
+                <div style={{
+                  backgroundColor: theme === "dark" ? "#1a1a1a" : "#f8f9fa",
+                  padding: "1.5rem",
+                  borderRadius: "8px",
+                  maxHeight: "600px",
+                  overflow: "auto",
+                }}>
+                  <pre style={{
+                    margin: 0,
+                    color: theme === "dark" ? "#f0f0f0" : "#1a1a1a",
+                    fontSize: "0.875rem",
+                    lineHeight: "1.6",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}>
+                    {JSON.stringify(previewData.json_data, null, 2)}
+                  </pre>
                 </div>
               </div>
             ) : previewData && previewData.sheets && previewData.sheets.length > 0 ? (
