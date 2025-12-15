@@ -97,6 +97,8 @@ class CommandExecutor(BaseExecutor):
         try:
             if command_type == TaskType.PERF_TEST_CMD:
                 return await self._execute_perf_test(payload)
+            elif command_type == TaskType.EVAL_TEST:
+                return await self._execute_eval_test(payload)
             elif command_type == TaskType.PYTEST:
                 return await self._execute_pytest(payload)
             elif command_type == TaskType.ENV_DEPLOY:
@@ -195,6 +197,93 @@ class CommandExecutor(BaseExecutor):
 
         # 执行命令（appauto 会自动生成输出文件）
         return await self._run_command(cmd_parts)
+
+
+    async def _execute_eval_test(self, payload: Dict[str, Any]) -> ExecutionResult:
+        """执行正确性测试命令
+        
+        使用 appauto bench evalscope eval 命令
+        
+        Args:
+            payload: 必须包含：
+                - base: "ft" 或 "amaas"
+                - skip_launch: 是否跳过模型启动
+                - ip: 服务器 IP
+                - port: API 端口
+                - model: 模型名称
+                - dataset: 数据集名称
+                - concurrency: 并发度
+                - temperature: 温度参数
+                等评测参数
+        """
+        self.log_info("Executing correctness test via appauto bench evalscope eval")
+        
+        base = payload.get("base", "ft")
+        skip_launch = payload.get("skip_launch", True)
+        
+        # 构建命令
+        cmd_parts = [self.appauto_path, "bench", "evalscope", "eval"]
+        
+        # 添加基础场景标志
+        if base == "amaas":
+            cmd_parts.append("--base-amaas")
+        else:
+            cmd_parts.append("--base-ft")
+        
+        # 是否跳过模型启动
+        if skip_launch:
+            cmd_parts.append("--skip-launch")
+        
+        # 添加连接参数
+        if payload.get("ip"):
+            cmd_parts.extend(["--ip", payload["ip"]])
+        if payload.get("port"):
+            cmd_parts.extend(["--port", str(payload["port"])])
+        
+        # SSH 参数
+        if payload.get("ssh_user"):
+            cmd_parts.extend(["--ssh-user", payload["ssh_user"]])
+        if payload.get("ssh_password"):
+            cmd_parts.extend(["--ssh-password", payload["ssh_password"]])
+        if payload.get("ssh_port"):
+            cmd_parts.extend(["--ssh-port", str(payload["ssh_port"])])
+        
+        # 模型参数
+        if payload.get("model"):
+            cmd_parts.extend(["--model", payload["model"]])
+        
+        # 如果不跳过启动，需要 tp 和 launch_timeout 参数
+        if not skip_launch:
+            if payload.get("tp"):
+                cmd_parts.extend(["--tp", str(payload["tp"])])
+            if payload.get("launch_timeout"):
+                cmd_parts.extend(["--launch-timeout", str(payload["launch_timeout"])])
+        
+        # 评测参数
+        if payload.get("dataset"):
+            cmd_parts.extend(["--dataset", payload["dataset"]])
+        if payload.get("dataset_args"):
+            cmd_parts.extend(["--dataset-args", payload["dataset_args"]])
+        if payload.get("max_tokens"):
+            cmd_parts.extend(["--max-tokens", str(payload["max_tokens"])])
+        if payload.get("concurrency"):
+            cmd_parts.extend(["--concurrency", str(payload["concurrency"])])
+        if payload.get("limit"):
+            cmd_parts.extend(["--limit", str(payload["limit"])])
+        if payload.get("temperature") is not None:
+            cmd_parts.extend(["--temperature", str(payload["temperature"])])
+        
+        # 可选标志
+        if payload.get("enable_thinking"):
+            cmd_parts.append("--enable-thinking")
+        if payload.get("keep_model"):
+            cmd_parts.append("--keep-model")
+        if payload.get("debug"):
+            cmd_parts.append("--debug")
+        
+        # 执行命令
+        return await self._run_command(cmd_parts)
+
 
     async def _execute_pytest(self, payload: Dict[str, Any]) -> ExecutionResult:
         """执行 pytest 测试
@@ -456,6 +545,10 @@ class CommandExecutor(BaseExecutor):
         xlsx_pattern = r'saved to:.*?([a-f0-9\-]+_\d{8}_\d{6}\.xlsx)'
         csv_pattern = r'saved to:.*?([a-f0-9\-]+_\d{8}_\d{6}\.csv)'
 
+        # 解析 evalscope 评测分数
+        # 查找类似 "score: 1.0" 或 "eval finished. score: 1.0" 的行
+        score_pattern = r'score:\s*([0-9.]+)'
+
         for line in stdout.split("\n"):
             xlsx_match = re.search(xlsx_pattern, line)
             if xlsx_match:
@@ -466,6 +559,13 @@ class CommandExecutor(BaseExecutor):
             if csv_match:
                 summary["output_csv"] = csv_match.group(1)
                 self.log_info(f"Found appauto generated csv: {csv_match.group(1)}")
+
+            # 提取评测分数 (使用 search 而不是 match，允许行中任意位置出现 score)
+            score_match = re.search(score_pattern, line)
+            if score_match and "score" not in summary:  # 只保存第一个找到的分数
+                score_value = float(score_match.group(1))
+                summary["score"] = score_value
+                self.log_info(f"Found evaluation score: {score_value}")
 
         # 如果没有找到 JSON，提取一些基本信息
         if not summary:

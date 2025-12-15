@@ -45,6 +45,17 @@ export interface TestRunForm {
   request_number?: number | string;
   tokenizer_path?: string;
   debug?: boolean;
+
+  // 正确性测试配置 (EvalScope)
+  dataset?: string;
+  dataset_args?: string;
+  max_tokens?: number;
+  eval_concurrency?: number;
+  eval_limit?: number;
+  temperature?: number;
+  enable_thinking?: boolean;
+  keep_model?: boolean;
+  launch_timeout?: number;
 }
 
 export interface TestRunResponse {

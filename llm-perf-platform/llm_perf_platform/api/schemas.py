@@ -359,3 +359,74 @@ class HardwareInfoCollectResponse(BaseModel):
     task_id: int
     status: str
     message: str = "Hardware info collection task submitted"
+
+
+# ===== 正确性测试（EvalScope Eval）=====
+
+class BaseTestEval(BaseModel):
+    """正确性测试基础模型"""
+    base: Literal["amaas", "ft"]
+    skip_launch: bool
+
+    ip: str
+    port: int = Field(gt=0)
+
+    model: str
+
+    ssh_user: str = "qujing"
+    ssh_password: Optional[str] = None
+    ssh_port: int = Field(default=22, gt=0)
+
+    # 评测参数
+    dataset: str = Field(default="aime24", description="数据集名称，如 aime24、mmlu、ceval")
+    dataset_args: Optional[str] = Field(default=None, description="数据集参数，JSON 格式")
+    max_tokens: Optional[int] = Field(default=None, gt=0, description="最大 token 数")
+    concurrency: int = Field(default=2, gt=0, description="并发度")
+    limit: Optional[int] = Field(default=None, gt=0, description="限制每个子集只跑前 n 题")
+    temperature: float = Field(default=0.6, ge=0.0, le=2.0, description="温度参数")
+    enable_thinking: bool = Field(default=False, description="是否开启 thinking 模式")
+    debug: bool = Field(default=False, description="是否开启 debug 模式")
+
+    # 模型启动参数（非 skip_launch 时需要）
+    tp: Literal[1, 2, 4, 8] = Field(default=1, description="几卡拉起模型")
+    keep_model: bool = Field(default=True, description="是否保持模型拉起状态")
+
+    # Appauto 版本配置
+    appauto_branch: str = "main"
+
+
+class TestEvalViaAMaaSSkipLaunch(BaseTestEval):
+    """AMaaS 场景正确性测试 - 跳过模型启动"""
+    base: Literal["amaas"] = "amaas"
+    skip_launch: bool = True
+    port: int = 10011
+
+
+class TestEvalViaAMaaSWithLaunch(BaseTestEval):
+    """AMaaS 场景正确性测试 - 自动启动模型"""
+    base: Literal["amaas"] = "amaas"
+    skip_launch: bool = False
+    port: int = 10011
+    launch_timeout: int = Field(default=900, gt=0, description="模型拉起超时时间（秒）")
+
+
+class TestEvalViaFTSkipLaunch(BaseTestEval):
+    """FT 场景正确性测试 - 跳过模型启动"""
+    base: Literal["ft"] = "ft"
+    skip_launch: bool = True
+
+
+class TestEvalViaFTWithLaunch(BaseTestEval):
+    """FT 场景正确性测试 - 自动启动模型"""
+    base: Literal["ft"] = "ft"
+    skip_launch: bool = False
+    launch_timeout: int = Field(default=900, gt=0, description="模型拉起超时时间（秒）")
+
+
+class TestEvalResponse(BaseModel):
+    """正确性测试响应"""
+    task_id: int
+    display_id: int
+    uuid: str
+    status: str
+    message: str

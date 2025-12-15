@@ -18,6 +18,9 @@ class TaskType(str, Enum):
     PERF_TEST_API = "perf_test_api"  # 使用 appauto Python API
     PERF_TEST_CMD = "perf_test_cmd"  # 使用 appauto bench evalscope 命令
 
+    # 正确性测试
+    EVAL_TEST = "eval_test"  # 使用 appauto bench evalscope eval 命令
+
     # pytest 测试
     PYTEST = "pytest"  # appauto run pytest
 

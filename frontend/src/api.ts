@@ -90,6 +90,38 @@ export function runPerfTest(payload: {
   });
 }
 
+// 新增：正确性测试 API
+export function runEvalTest(payload: {
+  base: "amaas" | "ft";
+  skip_launch: boolean;
+  ip: string;
+  port?: number;
+  model: string;
+  ssh_user: string;
+  ssh_password?: string;
+  ssh_port?: number;
+  dataset: string;
+  dataset_args?: string;
+  max_tokens?: number;
+  concurrency?: number;
+  limit?: number;
+  temperature?: number;
+  enable_thinking?: boolean;
+  debug?: boolean;
+  tp?: number;
+  keep_model?: boolean;
+  launch_timeout?: number;
+  appauto_branch?: string;
+}): Promise<TestRunResponse> {
+  const { base, skip_launch } = payload;
+  const endpoint = `/tests/run_eval/${base}/${skip_launch ? "skip_launch" : "with_launch"}`;
+
+  return request(endpoint, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchTasks(params?: { page?: number; page_size?: number; task_type?: string }): Promise<TaskListResponse> {
   const queryParams = new URLSearchParams();
   if (params?.page) queryParams.append("page", params.page.toString());

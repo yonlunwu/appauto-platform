@@ -25,6 +25,11 @@ from llm_perf_platform.api.schemas import (
     TestPerfViaAmaaSWithLaunch,
     TestPerfViaFTSkipLaunch,
     TestPerfViaFTWithLaunch,
+    TestEvalViaAMaaSSkipLaunch,
+    TestEvalViaAMaaSWithLaunch,
+    TestEvalViaFTSkipLaunch,
+    TestEvalViaFTWithLaunch,
+    TestEvalResponse,
 )
 from llm_perf_platform.executor.logger import LOG_DIR
 from llm_perf_platform.models.db import get_session
@@ -862,3 +867,170 @@ def preview_result(task_id: int, current_user = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"解析 Excel 文件失败：{str(e)}"
         )
+
+
+# ========== 正确性测试（EvalScope Eval）API ==========
+
+def _run_eval_test(
+    base: str,
+    skip_launch: bool,
+    request,
+    current_user,
+) -> TestEvalResponse:
+    """正确性测试的通用实现函数
+    
+    Args:
+        base: 测试基础环境，"amaas" 或 "ft"
+        skip_launch: 是否跳过模型启动
+        request: 请求对象（BaseTestEval 子类）
+        current_user: 当前登录用户
+    
+    Returns:
+        TestEvalResponse: 测试任务响应
+    """
+    # 构建 SSH 配置
+    ssh_config = {
+        "host": request.ip,
+        "port": request.ssh_port,
+        "user": request.ssh_user,
+        "auth_type": "password" if request.ssh_password else "key",
+        "password": request.ssh_password,
+        "timeout": 30,
+    }
+    
+    # 准备模型名称
+    model = request.model
+    
+    # 构建任务参数（包含所有 payload 需要的字段，确保重试时不丢失信息）
+    parameters = {
+        "task_type": "eval_test",  # 标记为正确性测试
+        "base": base,
+        "skip_launch": skip_launch,
+        "ip": request.ip,
+        "port": request.port,
+        "model": model,
+        "ssh_config": ssh_config,
+        "ssh_user": request.ssh_user,
+        "ssh_password": request.ssh_password,
+        "ssh_port": request.ssh_port,
+        
+        # 评测参数
+        "dataset": request.dataset,
+        "dataset_args": request.dataset_args,
+        "max_tokens": request.max_tokens,
+        "concurrency": request.concurrency,
+        "limit": request.limit,
+        "temperature": request.temperature,
+        "enable_thinking": request.enable_thinking,
+        "debug": request.debug,
+        
+        # 模型启动参数
+        "tp": request.tp,
+        "keep_model": request.keep_model,
+        "appauto_branch": request.appauto_branch,
+    }
+    
+    # 根据场景添加特定参数
+    if not skip_launch:
+        parameters["launch_timeout"] = getattr(request, "launch_timeout", 900)
+    
+    # 创建任务记录
+    record = task_service.create_task(
+        engine="evalscope",  # 使用 evalscope 作为引擎
+        model=model,
+        parameters=parameters,
+        status="queued",
+        ssh_config=ssh_config,
+        user_id=current_user.id,
+        appauto_branch=request.appauto_branch,
+        task_type="eval_test",
+    )
+    
+    # 构建调度器 payload
+    payload = {
+        "task_id": record.id,
+        "task_type": "eval_test",
+        "base": base,
+        "skip_launch": skip_launch,
+        "ip": request.ip,
+        "port": request.port,
+        "model": model,
+        "ssh_user": request.ssh_user,
+        "ssh_password": request.ssh_password,
+        "ssh_port": request.ssh_port,
+        "ssh_config": ssh_config,
+        
+        # 评测参数
+        "dataset": request.dataset,
+        "dataset_args": request.dataset_args,
+        "max_tokens": request.max_tokens,
+        "concurrency": request.concurrency,
+        "limit": request.limit,
+        "temperature": request.temperature,
+        "enable_thinking": request.enable_thinking,
+        "debug": request.debug,
+        
+        # 模型启动参数
+        "tp": request.tp,
+        "keep_model": request.keep_model,
+        "appauto_branch": request.appauto_branch,
+    }
+    
+    # 添加场景特定参数
+    if not skip_launch:
+        payload["launch_timeout"] = getattr(request, "launch_timeout", 900)
+    
+    # 提交任务到调度器
+    task_scheduler.submit(record.id, payload)
+    
+    return TestEvalResponse(
+        task_id=record.id,
+        display_id=record.display_id or record.id,
+        uuid=record.uuid,
+        status=record.status,
+        message=f"正确性测试任务已创建: {record.display_id or record.id}",
+    )
+
+
+@router.post("/run_eval/amaas/skip_launch", response_model=TestEvalResponse)
+def run_eval_via_amaas_skip_launch(request: TestEvalViaAMaaSSkipLaunch, current_user = Depends(get_current_user)):
+    """AMaaS 场景正确性测试 - 跳过模型启动"""
+    return _run_eval_test(
+        base="amaas",
+        skip_launch=True,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@router.post("/run_eval/amaas/with_launch", response_model=TestEvalResponse)
+def run_eval_via_amaas_with_launch(request: TestEvalViaAMaaSWithLaunch, current_user = Depends(get_current_user)):
+    """AMaaS 场景正确性测试 - 自动启动模型"""
+    return _run_eval_test(
+        base="amaas",
+        skip_launch=False,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@router.post("/run_eval/ft/skip_launch", response_model=TestEvalResponse)
+def run_eval_via_ft_skip_launch(request: TestEvalViaFTSkipLaunch, current_user = Depends(get_current_user)):
+    """FT 容器场景正确性测试 - 跳过模型启动"""
+    return _run_eval_test(
+        base="ft",
+        skip_launch=True,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@router.post("/run_eval/ft/with_launch", response_model=TestEvalResponse)
+def run_eval_via_ft_with_launch(request: TestEvalViaFTWithLaunch, current_user = Depends(get_current_user)):
+    """FT 容器场景正确性测试 - 自动启动模型"""
+    return _run_eval_test(
+        base="ft",
+        skip_launch=False,
+        request=request,
+        current_user=current_user,
+    )
