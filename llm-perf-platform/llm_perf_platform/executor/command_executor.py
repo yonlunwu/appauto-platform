@@ -382,22 +382,53 @@ class CommandExecutor(BaseExecutor):
 
         Args:
             payload: 必须包含：
-                - env_name: 环境名称
-                - deploy_config: 部署配置（可选）
+                - deploy_type: "amaas" 或 "ft"
+                - ip: IP 地址
+                - tag: 标签
+                - tar_name: tar 包名称
+                - ssh_user: SSH 用户名（可选，默认 qujing）
+                - ssh_password: SSH 密码（可选）
+                - ssh_port: SSH 端口（可选，默认 22）
+                - user: 用户信息（可选，用于消息卡片）
+
+                FT 特有参数：
+                - image: 镜像名称（FT 部署必需）
         """
         self.log_info("Executing environment deployment via appauto env deploy")
 
-        env_name = payload.get("env_name")
-        if not env_name:
-            raise ValueError("env_name is required for environment deployment")
+        deploy_type = payload.get("deploy_type")
+        if not deploy_type or deploy_type not in ["amaas", "ft"]:
+            raise ValueError("deploy_type must be 'amaas' or 'ft'")
 
         # 构建命令
-        cmd_parts = [self.appauto_path, "env", "deploy", env_name]
+        cmd_parts = [self.appauto_path, "env", "deploy", deploy_type]
 
-        # 添加配置文件
-        deploy_config = payload.get("deploy_config")
-        if deploy_config:
-            cmd_parts.extend(["--config", deploy_config])
+        # 添加必需参数
+        if payload.get("ip"):
+            cmd_parts.extend(["--ip", payload["ip"]])
+
+        # FT 需要 image 参数
+        if deploy_type == "ft":
+            if not payload.get("image"):
+                raise ValueError("image is required for FT deployment")
+            cmd_parts.extend(["--image", payload["image"]])
+
+        if payload.get("tag"):
+            cmd_parts.extend(["--tag", payload["tag"]])
+        if payload.get("tar_name"):
+            cmd_parts.extend(["--tar-name", payload["tar_name"]])
+
+        # 添加 SSH 参数
+        if payload.get("ssh_user"):
+            cmd_parts.extend(["--ssh-user", payload["ssh_user"]])
+        if payload.get("ssh_password"):
+            cmd_parts.extend(["--ssh-password", payload["ssh_password"]])
+        if payload.get("ssh_port"):
+            cmd_parts.extend(["--ssh-port", str(payload["ssh_port"])])
+
+        # 添加用户信息（用于消息卡片）
+        if payload.get("user"):
+            cmd_parts.extend(["--user", payload["user"]])
 
         return await self._run_command(cmd_parts)
 

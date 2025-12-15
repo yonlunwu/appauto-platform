@@ -12,6 +12,9 @@ from llm_perf_platform.api.schemas import (
     ArchiveResponse,
     CancelTaskResponse,
     DeleteTaskResponse,
+    DeployAMaaSRequest,
+    DeployFTRequest,
+    DeployResponse,
     HardwareInfoCollectRequest,
     HardwareInfoCollectResponse,
     RetryTaskResponse,
@@ -1051,6 +1054,104 @@ def run_eval_via_ft_with_launch(request: TestEvalViaFTWithLaunch, current_user =
     return _run_eval_test(
         base="ft",
         skip_launch=False,
+        request=request,
+        current_user=current_user,
+    )
+
+
+# ========== 环境部署 API ==========
+
+def _run_deploy(
+    deploy_type: str,
+    request,
+    current_user,
+) -> DeployResponse:
+    """环境部署的通用实现函数
+
+    Args:
+        deploy_type: 部署类型，"amaas" 或 "ft"
+        request: 请求对象（DeployAMaaSRequest 或 DeployFTRequest）
+        current_user: 当前登录用户
+
+    Returns:
+        DeployResponse: 部署任务响应
+    """
+    # 构建任务参数
+    parameters = {
+        "task_type": "env_deploy",  # 标记为环境部署
+        "deploy_type": deploy_type,
+        "ip": request.ip,
+        "tag": request.tag,
+        "tar_name": request.tar_name,
+        "ssh_user": request.ssh_user,
+        "ssh_password": request.ssh_password,
+        "ssh_port": request.ssh_port,
+        "user": request.user,
+        "appauto_branch": request.appauto_branch,
+    }
+
+    # FT 部署需要 image 参数
+    if deploy_type == "ft":
+        parameters["image"] = request.image
+
+    # 创建任务记录
+    record = task_service.create_task(
+        engine="appauto",  # 使用 appauto 作为引擎
+        model=f"{deploy_type}_deploy",  # 模型字段用来区分部署类型
+        parameters=parameters,
+        status="queued",
+        ssh_config=None,  # 部署任务不需要 SSH 配置（参数已包含在 parameters 中）
+        user_id=current_user.id,
+        appauto_branch=request.appauto_branch,
+        task_type="env_deploy",
+    )
+
+    # 构建调度器 payload
+    payload = {
+        "task_id": record.id,
+        "task_type": "env_deploy",
+        "deploy_type": deploy_type,
+        "ip": request.ip,
+        "tag": request.tag,
+        "tar_name": request.tar_name,
+        "ssh_user": request.ssh_user,
+        "ssh_password": request.ssh_password,
+        "ssh_port": request.ssh_port,
+        "user": request.user,
+        "appauto_branch": request.appauto_branch,
+    }
+
+    # FT 部署需要 image 参数
+    if deploy_type == "ft":
+        payload["image"] = request.image
+
+    # 提交任务到调度器
+    task_scheduler.submit(record.id, payload)
+
+    return DeployResponse(
+        task_id=record.id,
+        display_id=record.display_id or record.id,
+        uuid=record.uuid,
+        status=record.status,
+        message=f"{deploy_type.upper()} 部署任务已创建: {record.display_id or record.id}",
+    )
+
+
+@router.post("/deploy/amaas", response_model=DeployResponse)
+def deploy_amaas(request: DeployAMaaSRequest, current_user = Depends(get_current_user)):
+    """部署 AMaaS 环境"""
+    return _run_deploy(
+        deploy_type="amaas",
+        request=request,
+        current_user=current_user,
+    )
+
+
+@router.post("/deploy/ft", response_model=DeployResponse)
+def deploy_ft(request: DeployFTRequest, current_user = Depends(get_current_user)):
+    """部署 FT 环境"""
+    return _run_deploy(
+        deploy_type="ft",
         request=request,
         current_user=current_user,
     )

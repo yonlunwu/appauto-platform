@@ -430,3 +430,39 @@ class TestEvalResponse(BaseModel):
     uuid: str
     status: str
     message: str
+
+
+# ===== 环境部署 =====
+
+class DeployAMaaSRequest(BaseModel):
+    """AMaaS 部署请求"""
+    ip: str
+    tag: str
+    tar_name: str
+    ssh_user: str = "qujing"
+    ssh_password: str = "qujing@$#21"
+    ssh_port: int = 22
+    user: Optional[str] = None  # 消息卡片中的用户信息
+    appauto_branch: str = "main"
+
+
+class DeployFTRequest(BaseModel):
+    """FT 部署请求"""
+    ip: str
+    image: str = "approachingai/ktransformers"
+    tag: str
+    tar_name: str
+    ssh_user: str = "qujing"
+    ssh_password: str = "qujing@$#21"
+    ssh_port: int = 22
+    user: Optional[str] = None  # 消息卡片中的用户信息
+    appauto_branch: str = "main"
+
+
+class DeployResponse(BaseModel):
+    """部署响应"""
+    task_id: int
+    display_id: int
+    uuid: str
+    status: str
+    message: str

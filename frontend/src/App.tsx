@@ -166,6 +166,12 @@ function App() {
   const [appautoPath, setAppautoPath] = useState<string>("");
   const [updateBranch, setUpdateBranch] = useState<string>("main");
 
+  // Deployment state
+  const [deployTasks, setDeployTasks] = useState<TaskSummary[]>([]);
+  const [deployCurrentPage, setDeployCurrentPage] = useState(1);
+  const [deployTotalTasks, setDeployTotalTasks] = useState(0);
+  const [deployTotalPages, setDeployTotalPages] = useState(0);
+
   // User management state
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -230,6 +236,14 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, systemCurrentPage]);
 
+  useEffect(() => {
+    if (!profile) return;
+    loadDeployTasks();
+    const timer = setInterval(loadDeployTasks, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, deployCurrentPage]);
+
   const summaryColumns = useMemo(
     () => [
       { key: "avg_latency", label: "Avg Latency" },
@@ -283,6 +297,22 @@ function App() {
       setSystemTasks(data.items);
       setSystemTotalTasks(data.total);
       setSystemTotalPages(data.total_pages);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadDeployTasks() {
+    if (!profile) return;
+    try {
+      const data = await fetchTasks({
+        page: deployCurrentPage,
+        page_size: pageSize,
+        task_type: "env_deploy"
+      });
+      setDeployTasks(data.items);
+      setDeployTotalTasks(data.total);
+      setDeployTotalPages(data.total_pages);
     } catch (err) {
       console.error(err);
     }
@@ -893,6 +923,12 @@ function App() {
           正确性测试
         </button>
         <button
+          className={activeTab === "deployment" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("deployment")}
+        >
+          环境部署
+        </button>
+        <button
           className={activeTab === "others" ? "tab active" : "tab"}
           onClick={() => setActiveTab("others")}
         >
@@ -909,496 +945,523 @@ function App() {
       </div>
 
       {activeTab === "basic" && (
-        <>
+        <div>
           <section className="panel">
-            <h2>基础测试 (Pytest)</h2>
-
-          {/* 场景选择 */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={{ fontWeight: "600", marginBottom: "0.5rem", display: "block" }}>
-              测试场景
-            </label>
-            <div style={{ display: "flex", gap: "2rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <input
-                  type="radio"
-                  name="basic-scenario"
-                  value="ft"
-                  checked={form.scenario === "ft"}
-                  onChange={(e) => updateForm("scenario", e.target.value as "ft" | "amaas")}
-                />
-                <span>基于 FT</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <input
-                  type="radio"
-                  name="basic-scenario"
-                  value="amaas"
-                  checked={form.scenario === "amaas"}
-                  onChange={(e) => updateForm("scenario", e.target.value as "ft" | "amaas")}
-                />
-                <span>基于 AMaaS</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Appauto 配置 */}
-          <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>Appauto 配置</h3>
-          <div className="form-grid">
-            <label>
-              Appauto 分支 *
-              <input
-                type="text"
-                list="appauto-branch-suggestions-basic"
-                value={form.appauto_branch || ""}
-                onChange={(e) => {
-                  updateForm("appauto_branch", e.target.value);
-                  if (e.target.value) {
-                    setValidationErrors(prev => {
-                      const next = new Set(prev);
-                      next.delete("appauto_branch");
-                      return next;
-                    });
-                  } else {
-                    setValidationErrors(prev => {
-                      const next = new Set(prev);
-                      next.add("appauto_branch");
-                      return next;
-                    });
-                  }
-                }}
-                disabled={loadingBranches}
-                placeholder={loadingBranches ? "加载分支中..." : appautoBranches.length > 0 ? "从可用分支中选择或输入" : "main"}
-                required
-                style={{
-                  borderColor: validationErrors.has("appauto_branch") ? "#f87171" : undefined,
-                }}
-              />
-              <datalist id="appauto-branch-suggestions-basic">
-                {appautoBranches.map((branch) => (
-                  <option key={branch} value={branch} />
-                ))}
-              </datalist>
-              <small style={{ color: "#666" }}>指定 appauto 的 git 分支版本</small>
-            </label>
-          </div>
-
-          {/* SSH 配置 */}
-          <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>SSH 配置</h3>
-          <div className="form-grid">
-            <label>
-              SSH 主机 *
-              <input
-                type="text"
-                value={form.amaas_ip || ""}
-                onChange={(e) => updateForm("amaas_ip", e.target.value)}
-                placeholder="例如: 192.168.1.100"
-                required
-              />
-            </label>
-
-            <label>
-              SSH 用户 *
-              <input
-                type="text"
-                value={form.ssh_user || ""}
-                onChange={(e) => updateForm("ssh_user", e.target.value)}
-                placeholder="SSH 登录用户名"
-                required
-              />
-            </label>
-
-            <label>
-              SSH 密码
-              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                <input
-                  type={showPassword.ssh ? "text" : "password"}
-                  value={form.ssh_password || ""}
-                  onChange={(e) => updateForm("ssh_password", e.target.value)}
-                  placeholder="SSH 密码"
-                  style={{ flex: 1, paddingRight: "2.5rem" }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(prev => ({ ...prev, ssh: !prev.ssh }))}
-                  style={{
-                    position: "absolute",
-                    right: "0.5rem",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "0.25rem",
-                    fontSize: "0.75rem",
-                    color: "#94a3b8",
-                  }}
-                  title={showPassword.ssh ? "隐藏密码" : "显示密码"}
-                >
-                  {showPassword.ssh ? "隐藏" : "显示"}
-                </button>
-              </div>
-            </label>
-
-            <label>
-              SSH 端口
-              <input
-                type="number"
-                value={form.ssh_port === undefined ? "" : form.ssh_port}
-                onChange={(e) => updateForm("ssh_port", e.target.value === "" ? undefined : parseInt(e.target.value))}
-                placeholder="默认: 22"
-              />
-            </label>
-          </div>
-
-          {/* 测试配置 */}
-          <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>测试配置</h3>
-          <div className="form-grid">
-            <label>
-              测试路径
-              <input
-                type="text"
-                value={form.testpaths || ""}
-                onChange={(e) => updateForm("testpaths", e.target.value)}
-                placeholder={`默认: testcases/sanity_check/${form.scenario}/test_${form.scenario}.py`}
-              />
-              <small style={{ color: "#666" }}>不填则根据场景自动选择</small>
-            </label>
-
-            <label>
-              测试级别
-              <input
-                type="text"
-                value={form.case_level || ""}
-                onChange={(e) => updateForm("case_level", e.target.value)}
-                placeholder="例如: amaas_ci_sanity_check"
-              />
-            </label>
-
-            <label>
-              模型优先级
-              <input
-                type="text"
-                value={form.model_priority || ""}
-                onChange={(e) => updateForm("model_priority", e.target.value)}
-                placeholder="例如: DeepSeek-V3,Qwen2.5-72B"
-              />
-            </label>
-          </div>
-
-          {/* 通知配置（可选） */}
-          <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>通知配置（可选）</h3>
-          <div className="form-grid">
-            <label>
-              飞书用户
-              <input
-                type="text"
-                value={form.lark_user || ""}
-                onChange={(e) => updateForm("lark_user", e.target.value)}
-                placeholder="飞书用户名"
-              />
-            </label>
-
-            <label>
-              主题
-              <input
-                type="text"
-                value={form.topic || ""}
-                onChange={(e) => updateForm("topic", e.target.value)}
-                placeholder="测试主题"
-              />
-            </label>
-
-            <label>
-              通知组
-              <input
-                type="text"
-                value={form.notify_group || ""}
-                onChange={(e) => updateForm("notify_group", e.target.value)}
-                placeholder="例如: oc_e005f4612602e5af93d6272c0e8a1355"
-              />
-            </label>
-          </div>
-
-          {/* 报告配置（可选） */}
-          <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>报告配置（可选）</h3>
-          <div className="form-grid">
-            <label>
-              报告服务器
-              <input
-                type="text"
-                value={form.report_server || ""}
-                onChange={(e) => updateForm("report_server", e.target.value)}
-                placeholder="例如: 192.168.110.11:9080"
-              />
-            </label>
-
-            <label>
-              报告 URL
-              <input
-                type="text"
-                value={form.report_url || ""}
-                onChange={(e) => updateForm("report_url", e.target.value)}
-                placeholder="例如: job/my-job/123/allure/"
-              />
-            </label>
-          </div>
-
-          {/* 额外参数（可选） */}
-          <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>额外参数（可选）</h3>
-          <div className="form-grid">
-            <label>
-              Pytest 参数
-              <input
-                type="text"
-                value={form.pytest_args || ""}
-                onChange={(e) => updateForm("pytest_args", e.target.value)}
-                placeholder="例如: -v -s --maxfail=1"
-              />
-              <small style={{ color: "#666" }}>额外的 pytest 命令行参数，空格分隔</small>
-            </label>
-          </div>
-
-          {/* 操作按钮 */}
-          <div style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
-            <button
-              onClick={async () => {
-                const errors: string[] = [];
-                if (!form.amaas_ip) errors.push("SSH 主机");
-                if (!form.ssh_user) errors.push("SSH 用户");
-                if (!form.appauto_branch) errors.push("Appauto 分支");
-
-                if (errors.length > 0) {
-                  setError(`请填写必填项：${errors.join("、")}`);
-                  setValidationErrors(new Set(
-                    [
-                      !form.amaas_ip ? "amaas_ip" : null,
-                      !form.ssh_user ? "ssh_user" : null,
-                      !form.appauto_branch ? "appauto_branch" : null,
-                    ].filter(Boolean) as string[]
-                  ));
-                  return;
-                }
-
-                setLoading(true);
-                setError("");
-                setMessage("");
-
-                try {
-                  const ssh_config = {
-                    host: form.amaas_ip,
-                    port: form.ssh_port || 22,
-                    user: form.ssh_user,
-                    auth_type: "password" as const,
-                    password: form.ssh_password || undefined,
-                    timeout: 30,
-                  };
-
-                  const payload = {
-                    scenario: form.scenario,
-                    ssh_config,
-                    testpaths: form.testpaths || undefined,
-                    case_level: form.case_level || undefined,
-                    model_priority: form.model_priority || undefined,
-                    lark_user: form.lark_user || undefined,
-                    topic: form.topic || undefined,
-                    notify_group: form.notify_group || undefined,
-                    report_server: form.report_server || undefined,
-                    report_url: form.report_url || undefined,
-                    pytest_args: form.pytest_args || undefined,
-                  };
-
-                  const cachedToken = getAuthToken();
-                  const response = await fetch(`${API_BASE}/basic-tests/run`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      ...(cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {}),
-                    },
-                    body: JSON.stringify(payload),
-                  });
-
-                  if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || "测试启动失败");
-                  }
-
-                  const result = await response.json();
-                  setMessage(`基础测试已提交！任务 ID: ${result.task_id}`);
-                  await loadTasks();
-                } catch (err: any) {
-                  setError(err.message || "测试启动失败");
-                } finally {
-                  setLoading(false);
-                }
+            <div
+              className="collapsible-header"
+              onClick={() =>
+                setExpandedSection(
+                  expandedSection === "basic-test" ? null : "basic-test"
+                )
+              }
+              style={{
+                cursor: "pointer",
+                padding: "1rem",
+                borderBottom:
+                  expandedSection === "basic-test"
+                    ? "1px solid #e0e0e0"
+                    : "none",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
               }}
-              disabled={loading}
             >
-              {loading ? "启动中..." : "运行基础测试"}
-            </button>
-          </div>
-
-          {/* 消息显示 */}
-          {message && <div className="success" style={{ marginTop: "1rem" }}>{message}</div>}
-          {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
-        </section>
-
-        {/* 基础测试任务列表 */}
-        <section className="panel" style={{ marginTop: "1rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-            <h2 style={{ margin: 0 }}>任务列表</h2>
-            {tasks.filter(t => t.engine === "pytest").length > 0 && (
-              <span style={{ color: "#94a3b8", fontSize: "0.875rem" }}>
-                共 {tasks.filter(t => t.engine === "pytest").length} 条基础测试任务
+              <h2 style={{ margin: 0 }}>🧪 基础测试 (Pytest)</h2>
+              <span style={{ fontSize: "1.5rem" }}>
+                {expandedSection === "basic-test" ? "▼" : "▶"}
               </span>
-            )}
-          </div>
-          {tasks.filter(t => t.engine === "pytest").length === 0 ? (
-            <p style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
-              暂无基础测试任务
-            </p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>UUID</th>
-                  <th>引擎</th>
-                  <th>模型</th>
-                  <th>状态</th>
-                  <th>创建者</th>
-                  <th>创建时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.filter(t => t.engine === "pytest").map((task) => (
-                  <tr key={task.id}>
-                    <td>{task.display_id || task.id}</td>
-                    <td>
-                      <span
+            </div>
+
+            {expandedSection === "basic-test" && (
+              <div style={{ padding: "1.5rem" }}>
+                {/* 场景选择 */}
+                <div style={{ marginBottom: "1.5rem" }}>
+                  <label style={{ fontWeight: "600", marginBottom: "0.5rem", display: "block" }}>
+                    测试场景
+                  </label>
+                  <div style={{ display: "flex", gap: "2rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <input
+                        type="radio"
+                        name="basic-scenario"
+                        value="ft"
+                        checked={form.scenario === "ft"}
+                        onChange={(e) => updateForm("scenario", e.target.value as "ft" | "amaas")}
+                      />
+                      <span>基于 FT</span>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <input
+                        type="radio"
+                        name="basic-scenario"
+                        value="amaas"
+                        checked={form.scenario === "amaas"}
+                        onChange={(e) => updateForm("scenario", e.target.value as "ft" | "amaas")}
+                      />
+                      <span>基于 AMaaS</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Appauto 配置 */}
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>Appauto 配置</h3>
+                <div className="form-grid">
+                  <label>
+                    Appauto 分支 *
+                    <input
+                      type="text"
+                      list="appauto-branch-suggestions-basic"
+                      value={form.appauto_branch || ""}
+                      onChange={(e) => {
+                        updateForm("appauto_branch", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("appauto_branch");
+                            return next;
+                          });
+                        } else {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.add("appauto_branch");
+                            return next;
+                          });
+                        }
+                      }}
+                      disabled={loadingBranches}
+                      placeholder={loadingBranches ? "加载分支中..." : appautoBranches.length > 0 ? "从可用分支中选择或输入" : "main"}
+                      required
+                      style={{
+                        borderColor: validationErrors.has("appauto_branch") ? "#f87171" : undefined,
+                      }}
+                    />
+                    <datalist id="appauto-branch-suggestions-basic">
+                      {appautoBranches.map((branch) => (
+                        <option key={branch} value={branch} />
+                      ))}
+                    </datalist>
+                    <small style={{ color: "#666" }}>指定 appauto 的 git 分支版本</small>
+                  </label>
+                </div>
+
+                {/* SSH 配置 */}
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>SSH 配置</h3>
+                <div className="form-grid">
+                  <label>
+                    SSH 主机 *
+                    <input
+                      type="text"
+                      value={form.amaas_ip || ""}
+                      onChange={(e) => updateForm("amaas_ip", e.target.value)}
+                      placeholder="例如: 192.168.1.100"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    SSH 用户 *
+                    <input
+                      type="text"
+                      value={form.ssh_user || ""}
+                      onChange={(e) => updateForm("ssh_user", e.target.value)}
+                      placeholder="SSH 登录用户名"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    SSH 密码
+                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                      <input
+                        type={showPassword.ssh ? "text" : "password"}
+                        value={form.ssh_password || ""}
+                        onChange={(e) => updateForm("ssh_password", e.target.value)}
+                        placeholder="SSH 密码"
+                        style={{ flex: 1, paddingRight: "2.5rem" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(prev => ({ ...prev, ssh: !prev.ssh }))}
                         style={{
-                          fontFamily: "monospace",
+                          position: "absolute",
+                          right: "0.5rem",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "0.25rem",
                           fontSize: "0.75rem",
-                          color: "#666"
+                          color: "#94a3b8",
                         }}
-                        title={task.uuid}
+                        title={showPassword.ssh ? "隐藏密码" : "显示密码"}
                       >
-                        {task.uuid.substring(0, 8)}
-                      </span>
-                    </td>
-                    <td>{task.engine}</td>
-                    <td>{task.model}</td>
-                    <td>
-                      <span
-                        style={{
-                          padding: "0.25rem 0.5rem",
-                          borderRadius: "4px",
-                          fontSize: "0.875rem",
-                          fontWeight: "600",
-                          backgroundColor:
-                            task.status === "completed"
-                              ? "#d1f2eb"
-                              : task.status === "running"
-                              ? "#fff3cd"
-                              : task.status === "failed"
-                              ? "#f8d7da"
-                              : "#e2e3e5",
-                          color:
-                            task.status === "completed"
-                              ? "#0d6832"
-                              : task.status === "running"
-                              ? "#856404"
-                              : task.status === "failed"
-                              ? "#721c24"
-                              : "#383d41",
-                        }}
-                      >
-                        {task.status}
-                      </span>
-                    </td>
-                    <td>
-                      {task.user_email ? (
-                        <span style={{
-                          color: task.user_id === profile?.user_id ? "#28a745" : "#666",
-                          fontWeight: task.user_id === profile?.user_id ? "600" : "normal"
-                        }}>
-                          {task.user_email}
-                        </span>
-                      ) : (
-                        <span style={{ color: "#999" }}>未知</span>
-                      )}
-                    </td>
-                    <td>{new Date(task.created_at).toLocaleString()}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                        {task.result_path && (
-                          <button
-                            className="secondary"
-                            onClick={() =>
-                              window.open(downloadUrl(task.id), "_blank")
-                            }
-                          >
-                            下载
-                          </button>
-                        )}
-                        {task.result_path && (
-                          <button
-                            className="secondary"
-                            onClick={() => handlePreview(task.id)}
-                            style={{ color: "#17a2b8" }}
-                          >
-                            预览
-                          </button>
-                        )}
-                        {task.result_path && !task.archived_path && (
-                          <button
-                            className="secondary"
-                            onClick={() => handleArchive(task.id)}
-                          >
-                            归档
-                          </button>
-                        )}
-                        <button
-                          className="secondary"
-                          onClick={() => handleViewLogs(task.id)}
-                          style={{ color: "#007bff" }}
-                        >
-                          日志
-                        </button>
-                        <button
-                          className="secondary"
-                          onClick={() => handleRetry(task.id)}
-                          style={{ color: "#28a745" }}
-                        >
-                          重试
-                        </button>
-                        {(!task.user_id || task.user_id === profile?.user_id) &&
-                         (task.status === "queued" || task.status === "running") && (
-                          <button
-                            className="secondary"
-                            onClick={() => handleCancel(task.id)}
-                            style={{ color: "#ff9800" }}
-                          >
-                            取消
-                          </button>
-                        )}
-                        {(!task.user_id || task.user_id === profile?.user_id) && (
-                          <button
-                            className="secondary"
-                            onClick={() => handleDelete(task.id)}
-                            style={{ color: "#dc3545" }}
-                          >
-                            删除
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                        {showPassword.ssh ? "隐藏" : "显示"}
+                      </button>
+                    </div>
+                  </label>
+
+                  <label>
+                    SSH 端口
+                    <input
+                      type="number"
+                      value={form.ssh_port === undefined ? "" : form.ssh_port}
+                      onChange={(e) => updateForm("ssh_port", e.target.value === "" ? undefined : parseInt(e.target.value))}
+                      placeholder="默认: 22"
+                    />
+                  </label>
+                </div>
+
+                {/* 测试配置 */}
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>测试配置</h3>
+                <div className="form-grid">
+                  <label>
+                    测试路径
+                    <input
+                      type="text"
+                      value={form.testpaths || ""}
+                      onChange={(e) => updateForm("testpaths", e.target.value)}
+                      placeholder={`默认: testcases/sanity_check/${form.scenario}/test_${form.scenario}.py`}
+                    />
+                    <small style={{ color: "#666" }}>不填则根据场景自动选择</small>
+                  </label>
+
+                  <label>
+                    测试级别
+                    <input
+                      type="text"
+                      value={form.case_level || ""}
+                      onChange={(e) => updateForm("case_level", e.target.value)}
+                      placeholder="例如: amaas_ci_sanity_check"
+                    />
+                  </label>
+
+                  <label>
+                    模型优先级
+                    <input
+                      type="text"
+                      value={form.model_priority || ""}
+                      onChange={(e) => updateForm("model_priority", e.target.value)}
+                      placeholder="例如: DeepSeek-V3,Qwen2.5-72B"
+                    />
+                  </label>
+                </div>
+
+                {/* 通知配置（可选） */}
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>通知配置（可选）</h3>
+                <div className="form-grid">
+                  <label>
+                    飞书用户
+                    <input
+                      type="text"
+                      value={form.lark_user || ""}
+                      onChange={(e) => updateForm("lark_user", e.target.value)}
+                      placeholder="飞书用户名"
+                    />
+                  </label>
+
+                  <label>
+                    主题
+                    <input
+                      type="text"
+                      value={form.topic || ""}
+                      onChange={(e) => updateForm("topic", e.target.value)}
+                      placeholder="测试主题"
+                    />
+                  </label>
+
+                  <label>
+                    通知组
+                    <input
+                      type="text"
+                      value={form.notify_group || ""}
+                      onChange={(e) => updateForm("notify_group", e.target.value)}
+                      placeholder="例如: oc_e005f4612602e5af93d6272c0e8a1355"
+                    />
+                  </label>
+                </div>
+
+                {/* 报告配置（可选） */}
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>报告配置（可选）</h3>
+                <div className="form-grid">
+                  <label>
+                    报告服务器
+                    <input
+                      type="text"
+                      value={form.report_server || ""}
+                      onChange={(e) => updateForm("report_server", e.target.value)}
+                      placeholder="例如: 192.168.110.11:9080"
+                    />
+                  </label>
+
+                  <label>
+                    报告 URL
+                    <input
+                      type="text"
+                      value={form.report_url || ""}
+                      onChange={(e) => updateForm("report_url", e.target.value)}
+                      placeholder="例如: job/my-job/123/allure/"
+                    />
+                  </label>
+                </div>
+
+                {/* 额外参数（可选） */}
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>额外参数（可选）</h3>
+                <div className="form-grid">
+                  <label>
+                    Pytest 参数
+                    <input
+                      type="text"
+                      value={form.pytest_args || ""}
+                      onChange={(e) => updateForm("pytest_args", e.target.value)}
+                      placeholder="例如: -v -s --maxfail=1"
+                    />
+                    <small style={{ color: "#666" }}>额外的 pytest 命令行参数，空格分隔</small>
+                  </label>
+                </div>
+
+                {/* 操作按钮 */}
+                <div style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
+                  <button
+                    onClick={async () => {
+                      const errors: string[] = [];
+                      if (!form.amaas_ip) errors.push("SSH 主机");
+                      if (!form.ssh_user) errors.push("SSH 用户");
+                      if (!form.appauto_branch) errors.push("Appauto 分支");
+
+                      if (errors.length > 0) {
+                        setError(`请填写必填项：${errors.join("、")}`);
+                        setValidationErrors(new Set(
+                          [
+                            !form.amaas_ip ? "amaas_ip" : null,
+                            !form.ssh_user ? "ssh_user" : null,
+                            !form.appauto_branch ? "appauto_branch" : null,
+                          ].filter(Boolean) as string[]
+                        ));
+                        return;
+                      }
+
+                      setLoading(true);
+                      setError("");
+                      setMessage("");
+
+                      try {
+                        const ssh_config = {
+                          host: form.amaas_ip,
+                          port: form.ssh_port || 22,
+                          user: form.ssh_user,
+                          auth_type: "password" as const,
+                          password: form.ssh_password || undefined,
+                          timeout: 30,
+                        };
+
+                        const payload = {
+                          scenario: form.scenario,
+                          ssh_config,
+                          testpaths: form.testpaths || undefined,
+                          case_level: form.case_level || undefined,
+                          model_priority: form.model_priority || undefined,
+                          lark_user: form.lark_user || undefined,
+                          topic: form.topic || undefined,
+                          notify_group: form.notify_group || undefined,
+                          report_server: form.report_server || undefined,
+                          report_url: form.report_url || undefined,
+                          pytest_args: form.pytest_args || undefined,
+                        };
+
+                        const cachedToken = getAuthToken();
+                        const response = await fetch(`${API_BASE}/basic-tests/run`, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            ...(cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {}),
+                          },
+                          body: JSON.stringify(payload),
+                        });
+
+                        if (!response.ok) {
+                          const errorData = await response.json();
+                          throw new Error(errorData.detail || "测试启动失败");
+                        }
+
+                        const result = await response.json();
+                        setMessage(`基础测试已提交！任务 ID: ${result.task_id}`);
+                        await loadTasks();
+                      } catch (err: any) {
+                        setError(err.message || "测试启动失败");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    {loading ? "启动中..." : "运行基础测试"}
+                  </button>
+                </div>
+
+                {/* 消息显示 */}
+                {message && <div className="success" style={{ marginTop: "1rem" }}>{message}</div>}
+                {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
+              </div>
+            )}
+          </section>
+
+          {/* 基础测试任务列表 */}
+          <section className="panel" style={{ marginTop: "1rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h2 style={{ margin: 0 }}>任务列表</h2>
+              {tasks.filter(t => t.engine === "pytest").length > 0 && (
+                <span style={{ color: "#94a3b8", fontSize: "0.875rem" }}>
+                  共 {tasks.filter(t => t.engine === "pytest").length} 条基础测试任务
+                </span>
+              )}
+            </div>
+            {tasks.filter(t => t.engine === "pytest").length === 0 ? (
+              <p style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
+                暂无基础测试任务
+              </p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>UUID</th>
+                    <th>引擎</th>
+                    <th>模型</th>
+                    <th>状态</th>
+                    <th>创建者</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {tasks.filter(t => t.engine === "pytest").map((task) => (
+                    <tr key={task.id}>
+                      <td>{task.display_id || task.id}</td>
+                      <td>
+                        <span
+                          style={{
+                            fontFamily: "monospace",
+                            fontSize: "0.75rem",
+                            color: "#666"
+                          }}
+                          title={task.uuid}
+                        >
+                          {task.uuid.substring(0, 8)}
+                        </span>
+                      </td>
+                      <td>{task.engine}</td>
+                      <td>{task.model}</td>
+                      <td>
+                        <span
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            borderRadius: "4px",
+                            fontSize: "0.875rem",
+                            fontWeight: "600",
+                            backgroundColor:
+                              task.status === "completed"
+                                ? "#d1f2eb"
+                                : task.status === "running"
+                                ? "#fff3cd"
+                                : task.status === "failed"
+                                ? "#f8d7da"
+                                : "#e2e3e5",
+                            color:
+                              task.status === "completed"
+                                ? "#0d6832"
+                                : task.status === "running"
+                                ? "#856404"
+                                : task.status === "failed"
+                                ? "#721c24"
+                                : "#383d41",
+                          }}
+                        >
+                          {task.status}
+                        </span>
+                      </td>
+                      <td>
+                        {task.user_email ? (
+                          <span style={{
+                            color: task.user_id === profile?.user_id ? "#28a745" : "#666",
+                            fontWeight: task.user_id === profile?.user_id ? "600" : "normal"
+                          }}>
+                            {task.user_email}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#999" }}>未知</span>
+                        )}
+                      </td>
+                      <td>{new Date(task.created_at).toLocaleString()}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                          {task.result_path && (
+                            <button
+                              className="secondary"
+                              onClick={() =>
+                                window.open(downloadUrl(task.id), "_blank")
+                              }
+                            >
+                              下载
+                            </button>
+                          )}
+                          {task.result_path && (
+                            <button
+                              className="secondary"
+                              onClick={() => handlePreview(task.id)}
+                              style={{ color: "#17a2b8" }}
+                            >
+                              预览
+                            </button>
+                          )}
+                          {task.result_path && !task.archived_path && (
+                            <button
+                              className="secondary"
+                              onClick={() => handleArchive(task.id)}
+                            >
+                              归档
+                            </button>
+                          )}
+                          <button
+                            className="secondary"
+                            onClick={() => handleViewLogs(task.id)}
+                            style={{ color: "#007bff" }}
+                          >
+                            日志
+                          </button>
+                          <button
+                            className="secondary"
+                            onClick={() => handleRetry(task.id)}
+                            style={{ color: "#28a745" }}
+                          >
+                            重试
+                          </button>
+                          {(!task.user_id || task.user_id === profile?.user_id) &&
+                           (task.status === "queued" || task.status === "running") && (
+                            <button
+                              className="secondary"
+                              onClick={() => handleCancel(task.id)}
+                              style={{ color: "#ff9800" }}
+                            >
+                              取消
+                            </button>
+                          )}
+                          {(!task.user_id || task.user_id === profile?.user_id) && (
+                            <button
+                              className="secondary"
+                              onClick={() => handleDelete(task.id)}
+                              style={{ color: "#dc3545" }}
+                            >
+                              删除
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
         </section>
-        </>
+        </div>
       )}
 
       {activeTab === "performance" && (
@@ -4110,8 +4173,665 @@ function App() {
         </div>
       )}
 
+      {activeTab === "deployment" && (
+        <div>
+          {/* AMaaS 部署 */}
+          <section className="panel">
+            <div
+              className="collapsible-header"
+              onClick={() =>
+                setExpandedSection(
+                  expandedSection === "deploy-amaas" ? null : "deploy-amaas"
+                )
+              }
+              style={{
+                cursor: "pointer",
+                padding: "1rem",
+                borderBottom:
+                  expandedSection === "deploy-amaas"
+                    ? "1px solid #e0e0e0"
+                    : "none",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h2 style={{ margin: 0 }}>🚀 部署 AMaaS 环境</h2>
+              <span style={{ fontSize: "1.5rem" }}>
+                {expandedSection === "deploy-amaas" ? "▼" : "▶"}
+              </span>
+            </div>
+
+            {expandedSection === "deploy-amaas" && (
+              <div style={{ padding: "1.5rem" }}>
+                {/* Appauto 配置 */}
+                <h3 style={{ marginTop: "0", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>Appauto 配置</h3>
+                <div className="form-grid">
+                  <label>
+                    Appauto 分支 *
+                    <input
+                      type="text"
+                      list="appauto-branch-suggestions-deploy"
+                      value={form.appauto_branch || ""}
+                      onChange={(e) => {
+                        updateForm("appauto_branch", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("appauto_branch");
+                            return next;
+                          });
+                        }
+                      }}
+                      disabled={loadingBranches}
+                      placeholder={loadingBranches ? "加载分支中..." : appautoBranches.length > 0 ? "从可用分支中选择或输入" : "main"}
+                      required
+                      style={{
+                        borderColor: validationErrors.has("appauto_branch") ? "#f87171" : undefined,
+                      }}
+                    />
+                    <datalist id="appauto-branch-suggestions-deploy">
+                      {appautoBranches.map((branch) => (
+                        <option key={branch} value={branch} />
+                      ))}
+                    </datalist>
+                    {validationErrors.has("appauto_branch") && (
+                      <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
+                        请填写 Appauto 分支
+                      </span>
+                    )}
+                  </label>
+                </div>
+
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>部署配置</h3>
+                <div className="form-grid">
+                  <label>
+                    IP *
+                    <input
+                      type="text"
+                      value={form.ip || ""}
+                      onChange={(e) => {
+                        updateForm("ip", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("ip");
+                            return next;
+                          });
+                        }
+                      }}
+                      placeholder="192.168.1.1"
+                      required
+                      style={{
+                        borderColor: validationErrors.has("ip") ? "#f87171" : undefined,
+                      }}
+                    />
+                    {validationErrors.has("ip") && (
+                      <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
+                        请填写 IP 地址
+                      </span>
+                    )}
+                  </label>
+
+                  <label>
+                    Tag *
+                    <input
+                      type="text"
+                      value={form.tag || ""}
+                      onChange={(e) => {
+                        updateForm("tag", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("tag");
+                            return next;
+                          });
+                        }
+                      }}
+                      placeholder="v1.0.0"
+                      required
+                      style={{
+                        borderColor: validationErrors.has("tag") ? "#f87171" : undefined,
+                      }}
+                    />
+                    {validationErrors.has("tag") && (
+                      <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
+                        请填写 Tag
+                      </span>
+                    )}
+                  </label>
+
+                  <label>
+                    Tar 包名 *
+                    <input
+                      type="text"
+                      value={form.tar_name || ""}
+                      onChange={(e) => {
+                        updateForm("tar_name", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("tar_name");
+                            return next;
+                          });
+                        }
+                      }}
+                      placeholder="amaas.tar.gz"
+                      required
+                      style={{
+                        borderColor: validationErrors.has("tar_name") ? "#f87171" : undefined,
+                      }}
+                    />
+                    {validationErrors.has("tar_name") && (
+                      <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
+                        请填写 Tar 包名
+                      </span>
+                    )}
+                  </label>
+                </div>
+
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>SSH 配置</h3>
+                <div className="form-grid">
+                  <label>
+                    SSH 用户名
+                    <input
+                      type="text"
+                      value={form.ssh_user || "qujing"}
+                      onChange={(e) => updateForm("ssh_user", e.target.value)}
+                      placeholder="qujing"
+                    />
+                  </label>
+
+                  <label>
+                    SSH 密码
+                    <input
+                      type="password"
+                      value={form.ssh_password || ""}
+                      onChange={(e) => updateForm("ssh_password", e.target.value)}
+                      placeholder="SSH 密码（可选，支持 key 登录）"
+                    />
+                  </label>
+
+                  <label>
+                    SSH 端口
+                    <input
+                      type="number"
+                      value={form.ssh_port || 22}
+                      onChange={(e) => updateForm("ssh_port", parseInt(e.target.value))}
+                      placeholder="22"
+                    />
+                  </label>
+                </div>
+
+                <div style={{ marginTop: "1.5rem" }}>
+                  <button
+                    className="primary"
+                    onClick={async () => {
+                      setLoading(true);
+                      setMessage("");
+                      setSuccess("");
+                      setValidationErrors(new Set());
+
+                      // 验证必填项
+                      const errors = new Set<string>();
+                      if (!form.ip) errors.add("ip");
+                      if (!form.tag) errors.add("tag");
+                      if (!form.tar_name) errors.add("tar_name");
+                      if (!form.appauto_branch) errors.add("appauto_branch");
+
+                      if (errors.size > 0) {
+                        setValidationErrors(errors);
+                        setMessage("请填写所有必填项");
+                        setLoading(false);
+                        return;
+                      }
+
+                      // 验证 appauto 分支是否存在
+                      if (form.appauto_branch && appautoBranches.length > 0 && !appautoBranches.includes(form.appauto_branch)) {
+                        setValidationErrors(new Set(["appauto_branch"]));
+                        setMessage(`Appauto 分支 "${form.appauto_branch}" 不存在，请从可用分支中选择`);
+                        setLoading(false);
+                        return;
+                      }
+
+                      try {
+                        const cachedToken = getAuthToken();
+                        const response = await fetch(`${API_BASE}/tests/deploy/amaas`, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            ...(cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {}),
+                          },
+                          body: JSON.stringify({
+                            ip: form.ip,
+                            tag: form.tag,
+                            tar_name: form.tar_name,
+                            ssh_user: form.ssh_user || "qujing",
+                            ssh_password: form.ssh_password || "qujing@$#21",
+                            ssh_port: form.ssh_port || 22,
+                            user: profile?.email,
+                            appauto_branch: form.appauto_branch || "main",
+                          }),
+                        });
+
+                        if (!response.ok) {
+                          const errorData = await response.json();
+                          throw new Error(errorData.detail || "部署请求失败");
+                        }
+
+                        const result = await response.json();
+                        setSuccess(`AMaaS 部署任务已提交！任务 ID: ${result.display_id || result.task_id}`);
+
+                        // 刷新部署任务列表
+                        loadDeployTasks();
+                      } catch (error: unknown) {
+                        if (error instanceof Error) {
+                          setMessage(`AMaaS 部署失败: ${error.message}`);
+                        } else {
+                          setMessage("AMaaS 部署失败");
+                        }
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    {loading ? "提交中..." : "开始部署 AMaaS"}
+                  </button>
+                </div>
+
+                {message && <p className="error-message">{message}</p>}
+                {success && <p className="success-message">{success}</p>}
+              </div>
+            )}
+          </section>
+
+          {/* FT 部署 */}
+          <section className="panel" style={{ marginTop: "1rem" }}>
+            <div
+              className="collapsible-header"
+              onClick={() =>
+                setExpandedSection(
+                  expandedSection === "deploy-ft" ? null : "deploy-ft"
+                )
+              }
+              style={{
+                cursor: "pointer",
+                padding: "1rem",
+                borderBottom:
+                  expandedSection === "deploy-ft"
+                    ? "1px solid #e0e0e0"
+                    : "none",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h2 style={{ margin: 0 }}>🚀 部署 FT 环境</h2>
+              <span style={{ fontSize: "1.5rem" }}>
+                {expandedSection === "deploy-ft" ? "▼" : "▶"}
+              </span>
+            </div>
+
+            {expandedSection === "deploy-ft" && (
+              <div style={{ padding: "1.5rem" }}>
+                {/* Appauto 配置 */}
+                <h3 style={{ marginTop: "0", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>Appauto 配置</h3>
+                <div className="form-grid">
+                  <label>
+                    Appauto 分支 *
+                    <input
+                      type="text"
+                      list="appauto-branch-suggestions-deploy-ft"
+                      value={form.appauto_branch || ""}
+                      onChange={(e) => {
+                        updateForm("appauto_branch", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("appauto_branch");
+                            return next;
+                          });
+                        }
+                      }}
+                      disabled={loadingBranches}
+                      placeholder={loadingBranches ? "加载分支中..." : appautoBranches.length > 0 ? "从可用分支中选择或输入" : "main"}
+                      required
+                      style={{
+                        borderColor: validationErrors.has("appauto_branch") ? "#f87171" : undefined,
+                      }}
+                    />
+                    <datalist id="appauto-branch-suggestions-deploy-ft">
+                      {appautoBranches.map((branch) => (
+                        <option key={branch} value={branch} />
+                      ))}
+                    </datalist>
+                    {validationErrors.has("appauto_branch") && (
+                      <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
+                        请填写 Appauto 分支
+                      </span>
+                    )}
+                  </label>
+                </div>
+
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>部署配置</h3>
+                <div className="form-grid">
+                  <label>
+                    IP *
+                    <input
+                      type="text"
+                      value={form.ip || ""}
+                      onChange={(e) => {
+                        updateForm("ip", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("ip");
+                            return next;
+                          });
+                        }
+                      }}
+                      placeholder="192.168.1.1"
+                      required
+                      style={{
+                        borderColor: validationErrors.has("ip") ? "#f87171" : undefined,
+                      }}
+                    />
+                    {validationErrors.has("ip") && (
+                      <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
+                        请填写 IP 地址
+                      </span>
+                    )}
+                  </label>
+
+                  <label>
+                    Image
+                    <input
+                      type="text"
+                      value={form.image || ""}
+                      onChange={(e) => {
+                        updateForm("image", e.target.value);
+                      }}
+                      placeholder="默认: approachingai/ktransformers"
+                    />
+                  </label>
+
+                  <label>
+                    Tag *
+                    <input
+                      type="text"
+                      value={form.tag || ""}
+                      onChange={(e) => {
+                        updateForm("tag", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("tag");
+                            return next;
+                          });
+                        }
+                      }}
+                      placeholder="v1.0.0"
+                      required
+                      style={{
+                        borderColor: validationErrors.has("tag") ? "#f87171" : undefined,
+                      }}
+                    />
+                    {validationErrors.has("tag") && (
+                      <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
+                        请填写 Tag
+                      </span>
+                    )}
+                  </label>
+
+                  <label>
+                    Tar 包名 *
+                    <input
+                      type="text"
+                      value={form.tar_name || ""}
+                      onChange={(e) => {
+                        updateForm("tar_name", e.target.value);
+                        if (e.target.value) {
+                          setValidationErrors(prev => {
+                            const next = new Set(prev);
+                            next.delete("tar_name");
+                            return next;
+                          });
+                        }
+                      }}
+                      placeholder="ft.tar"
+                      required
+                      style={{
+                        borderColor: validationErrors.has("tar_name") ? "#f87171" : undefined,
+                      }}
+                    />
+                    {validationErrors.has("tar_name") && (
+                      <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
+                        请填写 Tar 包名
+                      </span>
+                    )}
+                  </label>
+                </div>
+
+                <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>SSH 配置</h3>
+                <div className="form-grid">
+                  <label>
+                    SSH 用户名
+                    <input
+                      type="text"
+                      value={form.ssh_user || "qujing"}
+                      onChange={(e) => updateForm("ssh_user", e.target.value)}
+                      placeholder="qujing"
+                    />
+                  </label>
+
+                  <label>
+                    SSH 密码
+                    <input
+                      type="password"
+                      value={form.ssh_password || ""}
+                      onChange={(e) => updateForm("ssh_password", e.target.value)}
+                      placeholder="SSH 密码（可选，支持 key 登录）"
+                    />
+                  </label>
+
+                  <label>
+                    SSH 端口
+                    <input
+                      type="number"
+                      value={form.ssh_port || 22}
+                      onChange={(e) => updateForm("ssh_port", parseInt(e.target.value))}
+                      placeholder="22"
+                    />
+                  </label>
+                </div>
+
+                <div style={{ marginTop: "1.5rem" }}>
+                  <button
+                    className="primary"
+                    onClick={async () => {
+                      setLoading(true);
+                      setMessage("");
+                      setSuccess("");
+                      setValidationErrors(new Set());
+
+                      // 验证必填项
+                      const errors = new Set<string>();
+                      if (!form.ip) errors.add("ip");
+                      if (!form.tag) errors.add("tag");
+                      if (!form.tar_name) errors.add("tar_name");
+                      if (!form.appauto_branch) errors.add("appauto_branch");
+
+                      if (errors.size > 0) {
+                        setValidationErrors(errors);
+                        setMessage("请填写所有必填项");
+                        setLoading(false);
+                        return;
+                      }
+
+                      // 验证 appauto 分支是否存在
+                      if (form.appauto_branch && appautoBranches.length > 0 && !appautoBranches.includes(form.appauto_branch)) {
+                        setValidationErrors(new Set(["appauto_branch"]));
+                        setMessage(`Appauto 分支 "${form.appauto_branch}" 不存在，请从可用分支中选择`);
+                        setLoading(false);
+                        return;
+                      }
+
+                      try {
+                        const cachedToken = getAuthToken();
+                        const response = await fetch(`${API_BASE}/tests/deploy/ft`, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            ...(cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {}),
+                          },
+                          body: JSON.stringify({
+                            ip: form.ip,
+                            image: form.image || "approachingai/ktransformers",
+                            tag: form.tag,
+                            tar_name: form.tar_name,
+                            ssh_user: form.ssh_user || "qujing",
+                            ssh_password: form.ssh_password || "qujing@$#21",
+                            ssh_port: form.ssh_port || 22,
+                            user: profile?.email,
+                            appauto_branch: form.appauto_branch || "main",
+                          }),
+                        });
+
+                        if (!response.ok) {
+                          const errorData = await response.json();
+                          throw new Error(errorData.detail || "部署请求失败");
+                        }
+
+                        const result = await response.json();
+                        setSuccess(`FT 部署任务已提交！任务 ID: ${result.display_id || result.task_id}`);
+
+                        // 刷新部署任务列表
+                        loadDeployTasks();
+                      } catch (error: unknown) {
+                        if (error instanceof Error) {
+                          setMessage(`FT 部署失败: ${error.message}`);
+                        } else {
+                          setMessage("FT 部署失败");
+                        }
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    {loading ? "提交中..." : "开始部署 FT"}
+                  </button>
+                </div>
+
+                {message && <p className="error-message">{message}</p>}
+                {success && <p className="success-message">{success}</p>}
+              </div>
+            )}
+          </section>
+
+          {/* 部署任务列表 */}
+          <section className="panel" style={{ marginTop: "1rem" }}>
+            <h2>部署任务列表</h2>
+            {deployTasks.length > 0 ? (
+              <>
+                <p>
+                  共 {deployTasks.length} 条部署任务
+                </p>
+                <table className="task-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>类型</th>
+                      <th>状态</th>
+                      <th>创建时间</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deployTasks.map((task) => (
+                      <tr key={task.id}>
+                        <td>{task.display_id || task.id}</td>
+                        <td>{task.model}</td>
+                        <td>
+                          <span
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              borderRadius: "4px",
+                              fontSize: "0.875rem",
+                              fontWeight: "600",
+                              backgroundColor:
+                                task.status === "completed"
+                                  ? "#d1f2eb"
+                                  : task.status === "running"
+                                  ? "#fff3cd"
+                                  : task.status === "failed"
+                                  ? "#f8d7da"
+                                  : "#e2e3e5",
+                              color:
+                                task.status === "completed"
+                                  ? "#0d6832"
+                                  : task.status === "running"
+                                  ? "#856404"
+                                  : task.status === "failed"
+                                  ? "#721c24"
+                                  : "#383d41",
+                            }}
+                          >
+                            {task.status}
+                          </span>
+                        </td>
+                        <td>
+                          {new Date(task.created_at).toLocaleString("zh-CN")}
+                        </td>
+                        <td>
+                          <button
+                            className="secondary"
+                            onClick={() => handleViewLogs(task.id)}
+                            style={{ color: "#6366f1" }}
+                          >
+                            日志
+                          </button>
+                          {task.status === "running" && (
+                            <button
+                              className="secondary"
+                              onClick={() => cancelTask(task.id)}
+                              style={{ color: "#f59e0b" }}
+                            >
+                              取消
+                            </button>
+                          )}
+                          {task.status === "failed" && (
+                            <button
+                              className="secondary"
+                              onClick={() => retryTask(task.id)}
+                              style={{ color: "#10b981" }}
+                            >
+                              重试
+                            </button>
+                          )}
+                          <button
+                            className="secondary"
+                            onClick={() => deleteTask(task.id)}
+                            style={{ color: "#ef4444" }}
+                          >
+                            删除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            ) : (
+              <p>暂无部署任务</p>
+            )}
+          </section>
+        </div>
+      )}
+
       {activeTab === "others" && (
-        <>
+        <div>
           {/* 硬件信息收集 */}
           <section className="panel">
             <div
@@ -4141,7 +4861,7 @@ function App() {
 
             {expandedSection === "hardware-info" && (
               <div style={{ padding: "1.5rem" }}>
-                <p style={{ color: "#666", marginBottom: "1rem", fontSize: "0.9rem" }}>
+                <p style={{ color: "#666", marginTop: "0", marginBottom: "1rem", fontSize: "0.9rem" }}>
                   收集远程机器的硬件配置信息，包括 GPU、CPU、内存、磁盘、操作系统等，生成 JSON 报告文件。
                 </p>
 
@@ -4466,11 +5186,11 @@ function App() {
               </div>
             )}
           </section>
-        </>
+        </div>
       )}
 
       {activeTab === "system" && profile?.role === "admin" && (
-        <>
+        <div>
           {/* 系统管理 */}
           <section className="panel">
             <div
@@ -4500,13 +5220,13 @@ function App() {
 
             {expandedSection === "system-management" && (
               <div style={{ padding: "1.5rem" }}>
-                <h3>Appauto 版本管理</h3>
+                <h3 style={{ marginTop: "0", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>Appauto 版本管理</h3>
                 <p style={{ color: "#666", marginBottom: "1rem" }}>
                   当前 Appauto 路径: {appautoPath || "加载中..."}
                 </p>
 
                 <div style={{ marginBottom: "2rem" }}>
-                  <h4>已安装版本</h4>
+                  <h4 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "600" }}>已安装版本</h4>
               {appautoVersions.length > 0 ? (
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -4542,7 +5262,7 @@ function App() {
             </div>
 
             <div style={{ marginBottom: "2rem" }}>
-              <h4>更新 Appauto</h4>
+              <h4 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "600" }}>更新 Appauto</h4>
               <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
                 <select
                   value={updateBranch}
@@ -4614,7 +5334,7 @@ function App() {
 
             {expandedSection === "user-management" && (
               <div style={{ padding: "1.5rem" }}>
-                <div style={{ marginBottom: "1rem", display: "flex", gap: "1rem", alignItems: "center" }}>
+                <div style={{ marginTop: "0", marginBottom: "1rem", display: "flex", gap: "1rem", alignItems: "center" }}>
               <button
                 className="secondary"
                 onClick={loadUsers}
@@ -4936,7 +5656,7 @@ function App() {
               </div>
             )}
           </section>
-        </>
+        </div>
       )}
 
       {/* 预览结果模态框 */}
