@@ -1,0 +1,1 @@
+export { OthersPage } from "./OthersPage";

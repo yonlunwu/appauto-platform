@@ -10,6 +10,9 @@ import {
   Legend,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
+import { CollapsiblePanel, StatusBadge, TaskTable, Pagination, Modal } from "./components";
+import { usePagination, useModal } from "./hooks";
+import { OthersPage } from "./pages";
 import {
   API_BASE,
   archiveTask,
@@ -114,13 +117,14 @@ function App() {
     return (saved as "dark" | "light") || "dark";
   });
   const [expandedSection, setExpandedSection] = useState<string | null>("existing-model");
-  const [showLogsModal, setShowLogsModal] = useState(false);
+
+  // Modal states
+  const logsModal = useModal();
   const [currentLogs, setCurrentLogs] = useState<string>("");
   const [logsTaskId, setLogsTaskId] = useState<number | null>(null);
   const logsTaskIdRef = useRef<number | null>(null);
 
-  // Preview modal state
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const previewModal = useModal();
   const [previewData, setPreviewData] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [currentSheetIndex, setCurrentSheetIndex] = useState(0);
@@ -153,24 +157,18 @@ function App() {
 
   // Others tasks state (hardware_info, etc.)
   const [othersTasks, setOthersTasks] = useState<TaskSummary[]>([]);
-  const [othersCurrentPage, setOthersCurrentPage] = useState(1);
-  const [othersTotalTasks, setOthersTotalTasks] = useState(0);
-  const [othersTotalPages, setOthersTotalPages] = useState(0);
+  const othersPagination = usePagination();
 
   // System management state
   const [systemTasks, setSystemTasks] = useState<TaskSummary[]>([]);
-  const [systemCurrentPage, setSystemCurrentPage] = useState(1);
-  const [systemTotalTasks, setSystemTotalTasks] = useState(0);
-  const [systemTotalPages, setSystemTotalPages] = useState(0);
+  const systemPagination = usePagination();
   const [appautoVersions, setAppautoVersions] = useState<any[]>([]);
   const [appautoPath, setAppautoPath] = useState<string>("");
   const [updateBranch, setUpdateBranch] = useState<string>("main");
 
   // Deployment state
   const [deployTasks, setDeployTasks] = useState<TaskSummary[]>([]);
-  const [deployCurrentPage, setDeployCurrentPage] = useState(1);
-  const [deployTotalTasks, setDeployTotalTasks] = useState(0);
-  const [deployTotalPages, setDeployTotalPages] = useState(0);
+  const deployPagination = usePagination();
 
   // User management state
   const [users, setUsers] = useState<UserInfo[]>([]);
@@ -178,10 +176,8 @@ function App() {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
 
   // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  const perfPagination = usePagination();
   const [pageSize] = useState(20);
-  const [totalTasks, setTotalTasks] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
 
   // Apply theme
   useEffect(() => {
@@ -216,7 +212,7 @@ function App() {
     const timer = setInterval(loadTasks, 5000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, currentPage]);
+  }, [profile, perfPagination.currentPage]);
 
   useEffect(() => {
     if (!profile) return;
@@ -224,7 +220,7 @@ function App() {
     const timer = setInterval(loadOthersTasks, 5000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, othersCurrentPage]);
+  }, [profile, othersPagination.currentPage]);
 
   useEffect(() => {
     if (!profile) return;
@@ -234,7 +230,7 @@ function App() {
     const timer = setInterval(loadSystemTasks, 5000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, systemCurrentPage]);
+  }, [profile, systemPagination.currentPage]);
 
   useEffect(() => {
     if (!profile) return;
@@ -242,7 +238,12 @@ function App() {
     const timer = setInterval(loadDeployTasks, 5000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, deployCurrentPage]);
+  }, [profile, deployPagination.currentPage]);
+
+  // Toggle collapsible panel
+  const togglePanel = (panelId: string) => {
+    setExpandedSection(expandedSection === panelId ? null : panelId);
+  };
 
   const summaryColumns = useMemo(
     () => [
@@ -258,13 +259,13 @@ function App() {
     if (!profile) return;
     try {
       const data = await fetchTasks({
-        page: currentPage,
+        page: perfPagination.currentPage,
         page_size: pageSize,
         // 移除 task_type 过滤，加载所有任务（包括 pytest 和 perf_test）
       });
       setTasks(data.items);
-      setTotalTasks(data.total);
-      setTotalPages(data.total_pages);
+      perfPagination.setTotalTasks(data.total);
+      perfPagination.setTotalPages(data.total_pages);
     } catch (err) {
       console.error(err);
     }
@@ -274,13 +275,13 @@ function App() {
     if (!profile) return;
     try {
       const data = await fetchTasks({
-        page: othersCurrentPage,
+        page: othersPagination.currentPage,
         page_size: pageSize,
         task_type: "hardware_info"
       });
       setOthersTasks(data.items);
-      setOthersTotalTasks(data.total);
-      setOthersTotalPages(data.total_pages);
+      othersPagination.perfPagination.setTotalTasks(data.total);
+      othersPagination.perfPagination.setTotalPages(data.total_pages);
     } catch (err) {
       console.error(err);
     }
@@ -290,13 +291,13 @@ function App() {
     if (!profile) return;
     try {
       const data = await fetchTasks({
-        page: systemCurrentPage,
+        page: systemPagination.currentPage,
         page_size: pageSize,
         task_type: "system_maintenance"
       });
       setSystemTasks(data.items);
-      setSystemTotalTasks(data.total);
-      setSystemTotalPages(data.total_pages);
+      systemPagination.perfPagination.setTotalTasks(data.total);
+      systemPagination.perfPagination.setTotalPages(data.total_pages);
     } catch (err) {
       console.error(err);
     }
@@ -306,13 +307,13 @@ function App() {
     if (!profile) return;
     try {
       const data = await fetchTasks({
-        page: deployCurrentPage,
+        page: deployPagination.currentPage,
         page_size: pageSize,
         task_type: "env_deploy"
       });
       setDeployTasks(data.items);
-      setDeployTotalTasks(data.total);
-      setDeployTotalPages(data.total_pages);
+      deployPagination.perfPagination.setTotalTasks(data.total);
+      deployPagination.perfPagination.setTotalPages(data.total_pages);
     } catch (err) {
       console.error(err);
     }
@@ -751,7 +752,7 @@ function App() {
     // Clear old logs first to prevent showing stale data
     setCurrentLogs("");
     setLogsTaskId(taskId);
-    setShowLogsModal(true);
+    logsModal.open();
 
     try {
       const response = await fetchTaskLogs(taskId);
@@ -767,7 +768,7 @@ function App() {
   async function handlePreview(taskId: number) {
     setError(null);
     setPreviewLoading(true);
-    setShowPreviewModal(true);
+    previewModal.open();
     setPreviewData(null);
     setCurrentSheetIndex(0);
 
@@ -946,34 +947,13 @@ function App() {
 
       {activeTab === "basic" && (
         <div>
-          <section className="panel">
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "basic-test" ? null : "basic-test"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "basic-test"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>🧪 基础测试 (Pytest)</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "basic-test" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "basic-test" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="basic-test"
+            title="基础测试 (Pytest)"
+            icon="🧪"
+            isExpanded={expandedSection === "basic-test"}
+            onToggle={togglePanel}
+          >
                 {/* 场景选择 */}
                 <div style={{ marginBottom: "1.5rem" }}>
                   <label style={{ fontWeight: "600", marginBottom: "0.5rem", display: "block" }}>
@@ -1297,12 +1277,10 @@ function App() {
                   </button>
                 </div>
 
-                {/* 消息显示 */}
-                {message && <div className="success" style={{ marginTop: "1rem" }}>{message}</div>}
-                {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
-              </div>
-            )}
-          </section>
+            {/* 消息显示 */}
+            {message && <div className="success" style={{ marginTop: "1rem" }}>{message}</div>}
+            {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
+          </CollapsiblePanel>
 
           {/* 基础测试任务列表 */}
           <section className="panel" style={{ marginTop: "1rem" }}>
@@ -1314,152 +1292,18 @@ function App() {
                 </span>
               )}
             </div>
-            {tasks.filter(t => t.engine === "pytest").length === 0 ? (
-              <p style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
-                暂无基础测试任务
-              </p>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>UUID</th>
-                    <th>引擎</th>
-                    <th>模型</th>
-                    <th>状态</th>
-                    <th>创建者</th>
-                    <th>创建时间</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasks.filter(t => t.engine === "pytest").map((task) => (
-                    <tr key={task.id}>
-                      <td>{task.display_id || task.id}</td>
-                      <td>
-                        <span
-                          style={{
-                            fontFamily: "monospace",
-                            fontSize: "0.75rem",
-                            color: "#666"
-                          }}
-                          title={task.uuid}
-                        >
-                          {task.uuid.substring(0, 8)}
-                        </span>
-                      </td>
-                      <td>{task.engine}</td>
-                      <td>{task.model}</td>
-                      <td>
-                        <span
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            borderRadius: "4px",
-                            fontSize: "0.875rem",
-                            fontWeight: "600",
-                            backgroundColor:
-                              task.status === "completed"
-                                ? "#d1f2eb"
-                                : task.status === "running"
-                                ? "#fff3cd"
-                                : task.status === "failed"
-                                ? "#f8d7da"
-                                : "#e2e3e5",
-                            color:
-                              task.status === "completed"
-                                ? "#0d6832"
-                                : task.status === "running"
-                                ? "#856404"
-                                : task.status === "failed"
-                                ? "#721c24"
-                                : "#383d41",
-                          }}
-                        >
-                          {task.status}
-                        </span>
-                      </td>
-                      <td>
-                        {task.user_email ? (
-                          <span style={{
-                            color: task.user_id === profile?.user_id ? "#28a745" : "#666",
-                            fontWeight: task.user_id === profile?.user_id ? "600" : "normal"
-                          }}>
-                            {task.user_email}
-                          </span>
-                        ) : (
-                          <span style={{ color: "#999" }}>未知</span>
-                        )}
-                      </td>
-                      <td>{new Date(task.created_at).toLocaleString()}</td>
-                      <td>
-                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                          {task.result_path && (
-                            <button
-                              className="secondary"
-                              onClick={() =>
-                                window.open(downloadUrl(task.id), "_blank")
-                              }
-                            >
-                              下载
-                            </button>
-                          )}
-                          {task.result_path && (
-                            <button
-                              className="secondary"
-                              onClick={() => handlePreview(task.id)}
-                              style={{ color: "#17a2b8" }}
-                            >
-                              预览
-                            </button>
-                          )}
-                          {task.result_path && !task.archived_path && (
-                            <button
-                              className="secondary"
-                              onClick={() => handleArchive(task.id)}
-                            >
-                              归档
-                            </button>
-                          )}
-                          <button
-                            className="secondary"
-                            onClick={() => handleViewLogs(task.id)}
-                            style={{ color: "#007bff" }}
-                          >
-                            日志
-                          </button>
-                          <button
-                            className="secondary"
-                            onClick={() => handleRetry(task.id)}
-                            style={{ color: "#28a745" }}
-                          >
-                            重试
-                          </button>
-                          {(!task.user_id || task.user_id === profile?.user_id) &&
-                           (task.status === "queued" || task.status === "running") && (
-                            <button
-                              className="secondary"
-                              onClick={() => handleCancel(task.id)}
-                              style={{ color: "#ff9800" }}
-                            >
-                              取消
-                            </button>
-                          )}
-                          {(!task.user_id || task.user_id === profile?.user_id) && (
-                            <button
-                              className="secondary"
-                              onClick={() => handleDelete(task.id)}
-                              style={{ color: "#dc3545" }}
-                            >
-                              删除
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <TaskTable
+              tasks={tasks.filter(t => t.engine === "pytest")}
+              profile={profile}
+              onDownload={(taskId) => window.open(downloadUrl(taskId), "_blank")}
+              onPreview={handlePreview}
+              onArchive={handleArchive}
+              onViewLogs={handleViewLogs}
+              onRetry={handleRetry}
+              onCancel={handleCancel}
+              onDelete={handleDelete}
+              emptyMessage="暂无基础测试任务"
+            />
         </section>
         </div>
       )}
@@ -1467,34 +1311,13 @@ function App() {
       {activeTab === "performance" && (
         <div>
           {/* 第一个可折叠菜单：已有运行中模型 */}
-          <section className="panel">
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "existing-model" ? null : "existing-model"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "existing-model"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>📊 模型已运行，直接进行性能测试</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "existing-model" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "existing-model" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="existing-model"
+            title="模型已运行，直接进行性能测试"
+            icon="📊"
+            isExpanded={expandedSection === "existing-model"}
+            onToggle={togglePanel}
+          >
                 {/* 场景选择 */}
                 <div style={{ marginBottom: "1.5rem" }}>
                   <label style={{ fontWeight: "600", marginBottom: "0.5rem", display: "block" }}>
@@ -2292,42 +2115,19 @@ function App() {
                   </button>
                 </div>
 
-                {/* 消息显示 */}
-                {message && <div className="success" style={{ marginTop: "1rem" }}>{message}</div>}
-                {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
-              </div>
-            )}
-          </section>
+            {/* 消息显示 */}
+            {message && <div className="success" style={{ marginTop: "1rem" }}>{message}</div>}
+            {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
+          </CollapsiblePanel>
 
           {/* 第二个可折叠菜单：拉起模型并测试 */}
-          <section className="panel" style={{ marginTop: "1rem" }}>
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "launch-model" ? null : "launch-model"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "launch-model"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>🚀 拉起模型并进行性能测试</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "launch-model" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "launch-model" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="launch-model"
+            title="拉起模型并进行性能测试"
+            icon="🚀"
+            isExpanded={expandedSection === "launch-model"}
+            onToggle={togglePanel}
+          >
                 {/* 场景选择 */}
                 <div style={{ marginBottom: "1.5rem" }}>
                   <label style={{ fontWeight: "600", marginBottom: "0.5rem", display: "block" }}>
@@ -2890,9 +2690,7 @@ function App() {
                 {/* 消息显示 */}
                 {message && <div className="success" style={{ marginTop: "1rem" }}>{message}</div>}
                 {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
-              </div>
-            )}
-          </section>
+          </CollapsiblePanel>
 
           {/* 性能测试任务列表 */}
           <section className="panel" style={{ marginTop: "1rem" }}>
@@ -2904,195 +2702,25 @@ function App() {
                 </span>
               )}
             </div>
-            {tasks.filter(t => t.engine === "evalscope" && !t.parameters?.dataset).length === 0 ? (
-              <p style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
-                暂无性能测试任务
-              </p>
-            ) : (
-              <>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>UUID</th>
-                      <th>引擎</th>
-                      <th>模型</th>
-                      <th>状态</th>
-                      <th>创建者</th>
-                      <th>创建时间</th>
-                      <th>操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tasks.filter(t => t.engine === "evalscope" && !t.parameters?.dataset).map((task) => (
-                      <tr key={task.id}>
-                        <td>{task.display_id || task.id}</td>
-                        <td>
-                          <span
-                            style={{
-                              fontFamily: "monospace",
-                              fontSize: "0.75rem",
-                              color: "#666"
-                            }}
-                            title={task.uuid}
-                          >
-                            {task.uuid.substring(0, 8)}
-                          </span>
-                        </td>
-                        <td>{task.engine}</td>
-                        <td>{task.model}</td>
-                        <td>
-                          <span
-                            style={{
-                              padding: "0.25rem 0.5rem",
-                              borderRadius: "4px",
-                              fontSize: "0.875rem",
-                              fontWeight: "600",
-                              backgroundColor:
-                                task.status === "completed"
-                                  ? "#d1f2eb"
-                                  : task.status === "running"
-                                  ? "#fff3cd"
-                                  : task.status === "failed"
-                                  ? "#f8d7da"
-                                  : "#e2e3e5",
-                              color:
-                                task.status === "completed"
-                                  ? "#0d6832"
-                                  : task.status === "running"
-                                  ? "#856404"
-                                  : task.status === "failed"
-                                  ? "#721c24"
-                                  : "#383d41",
-                            }}
-                          >
-                            {task.status}
-                          </span>
-                        </td>
-                        <td>
-                          {task.user_email ? (
-                            <span style={{
-                              color: task.user_id === profile?.user_id ? "#28a745" : "#666",
-                              fontWeight: task.user_id === profile?.user_id ? "600" : "normal"
-                            }}>
-                              {task.user_email}
-                            </span>
-                          ) : (
-                            <span style={{ color: "#999" }}>未知</span>
-                          )}
-                        </td>
-                        <td>{new Date(task.created_at).toLocaleString()}</td>
-                        <td>
-                          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                            {task.result_path && (
-                              <button
-                                className="secondary"
-                                onClick={() =>
-                                  window.open(downloadUrl(task.id), "_blank")
-                                }
-                              >
-                                下载
-                              </button>
-                            )}
-                            {task.result_path && (
-                              <button
-                                className="secondary"
-                                onClick={() => handlePreview(task.id)}
-                                style={{ color: "#17a2b8" }}
-                              >
-                                预览
-                              </button>
-                            )}
-                            {task.result_path && !task.archived_path && (
-                              <button
-                                className="secondary"
-                                onClick={() => handleArchive(task.id)}
-                              >
-                                归档
-                              </button>
-                            )}
-                            <button
-                              className="secondary"
-                              onClick={() => handleViewLogs(task.id)}
-                              style={{ color: "#007bff" }}
-                            >
-                              日志
-                            </button>
-                            <button
-                              className="secondary"
-                              onClick={() => handleRetry(task.id)}
-                              style={{ color: "#28a745" }}
-                            >
-                              重试
-                            </button>
-                            {/* Only show cancel button if task belongs to current user and is queued/running */}
-                            {(!task.user_id || task.user_id === profile?.user_id) &&
-                             (task.status === "queued" || task.status === "running") && (
-                              <button
-                                className="secondary"
-                                onClick={() => handleCancel(task.id)}
-                                style={{ color: "#ff9800" }}
-                              >
-                                取消
-                              </button>
-                            )}
-                            {/* Only show delete button if task belongs to current user */}
-                            {(!task.user_id || task.user_id === profile?.user_id) && (
-                              <button
-                                className="secondary"
-                                onClick={() => handleDelete(task.id)}
-                                style={{ color: "#dc3545" }}
-                              >
-                                删除
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <TaskTable
+              tasks={tasks.filter(t => t.engine === "evalscope" && !t.parameters?.dataset)}
+              profile={profile}
+              onDownload={(taskId) => window.open(downloadUrl(taskId), "_blank")}
+              onPreview={handlePreview}
+              onArchive={handleArchive}
+              onViewLogs={handleViewLogs}
+              onRetry={handleRetry}
+              onCancel={handleCancel}
+              onDelete={handleDelete}
+              emptyMessage="暂无性能测试任务"
+            />
 
-                {/* Pagination controls */}
-                {totalPages > 1 && (
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    gap: "1rem",
-                    marginTop: "1.5rem",
-                    paddingTop: "1rem",
-                    borderTop: "1px solid #e0e0e0"
-                  }}>
-                    <button
-                      className="secondary"
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
-                      style={{
-                        opacity: currentPage === 1 ? 0.5 : 1,
-                        cursor: currentPage === 1 ? "not-allowed" : "pointer"
-                      }}
-                    >
-                      上一页
-                    </button>
-                    <span style={{ color: "#666" }}>
-                      第 {currentPage} / {totalPages} 页
-                    </span>
-                    <button
-                      className="secondary"
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      disabled={currentPage === totalPages}
-                      style={{
-                        opacity: currentPage === totalPages ? 0.5 : 1,
-                        cursor: currentPage === totalPages ? "not-allowed" : "pointer"
-                      }}
-                    >
-                      下一页
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
+            {/* Pagination controls */}
+            <Pagination
+              currentPage={perfPagination.currentPage}
+              totalPages={perfPagination.totalPages}
+              onPageChange={perfPagination.setCurrentPage}
+            />
           </section>
         </div>
       )}
@@ -3100,36 +2728,13 @@ function App() {
       {activeTab === "correctness" && (
         <div>
           {/* 第一个可折叠菜单：已有运行中模型 */}
-          <section className="panel">
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "eval-existing-model"
-                    ? null
-                    : "eval-existing-model"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "eval-existing-model"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>📊 模型已运行，直接进行正确性测试</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "eval-existing-model" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "eval-existing-model" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="eval-existing-model"
+            title="模型已运行，直接进行正确性测试"
+            icon="📊"
+            isExpanded={expandedSection === "eval-existing-model"}
+            onToggle={togglePanel}
+          >
                 {/* 场景选择 */}
                 <div style={{ marginBottom: "1.5rem" }}>
                   <label style={{ fontWeight: "600", marginBottom: "0.5rem", display: "block" }}>
@@ -3543,41 +3148,16 @@ function App() {
                 {/* 消息显示 */}
                 {success && <div className="success" style={{ marginTop: "1rem" }}>{success}</div>}
                 {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
-              </div>
-            )}
-          </section>
+          </CollapsiblePanel>
 
           {/* 第二个可折叠菜单：拉起模型并进行测试 */}
-          <section className="panel" style={{ marginTop: "1rem" }}>
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "eval-launch-model"
-                    ? null
-                    : "eval-launch-model"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "eval-launch-model"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>🚀 拉起模型并进行正确性测试</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "eval-launch-model" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "eval-launch-model" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="eval-launch-model"
+            title="拉起模型并进行正确性测试"
+            icon="🚀"
+            isExpanded={expandedSection === "eval-launch-model"}
+            onToggle={togglePanel}
+          >
                 {/* 场景选择 */}
                 <div style={{ marginBottom: "1.5rem" }}>
                   <label style={{ fontWeight: "600", marginBottom: "0.5rem", display: "block" }}>
@@ -4018,9 +3598,7 @@ function App() {
                 {/* 消息显示 */}
                 {success && <div className="success" style={{ marginTop: "1rem" }}>{success}</div>}
                 {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
-              </div>
-            )}
-          </section>
+          </CollapsiblePanel>
 
           {/* 正确性测试任务列表 */}
           <section className="panel" style={{ marginTop: "1rem" }}>
@@ -4070,32 +3648,7 @@ function App() {
                       <td>{task.parameters?.dataset || "未知"}</td>
                       <td>{task.model}</td>
                       <td>
-                        <span
-                          style={{
-                            padding: "0.25rem 0.5rem",
-                            borderRadius: "4px",
-                            fontSize: "0.875rem",
-                            fontWeight: "600",
-                            backgroundColor:
-                              task.status === "completed"
-                                ? "#d1f2eb"
-                                : task.status === "running"
-                                ? "#fff3cd"
-                                : task.status === "failed"
-                                ? "#f8d7da"
-                                : "#e2e3e5",
-                            color:
-                              task.status === "completed"
-                                ? "#0d6832"
-                                : task.status === "running"
-                                ? "#856404"
-                                : task.status === "failed"
-                                ? "#721c24"
-                                : "#383d41",
-                          }}
-                        >
-                          {task.status}
-                        </span>
+                        <StatusBadge status={task.status} />
                       </td>
                       <td>
                         {task.status === "completed" ? (
@@ -4176,34 +3729,13 @@ function App() {
       {activeTab === "deployment" && (
         <div>
           {/* AMaaS 部署 */}
-          <section className="panel">
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "deploy-amaas" ? null : "deploy-amaas"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "deploy-amaas"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>🚀 部署 AMaaS 环境</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "deploy-amaas" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "deploy-amaas" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="deploy-amaas"
+            title="部署 AMaaS 环境"
+            icon="🚀"
+            isExpanded={expandedSection === "deploy-amaas"}
+            onToggle={togglePanel}
+          >
                 {/* Appauto 配置 */}
                 <h3 style={{ marginTop: "0", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>Appauto 配置</h3>
                 <div className="form-grid">
@@ -4442,39 +3974,16 @@ function App() {
 
                 {message && <p className="error-message">{message}</p>}
                 {success && <p className="success-message">{success}</p>}
-              </div>
-            )}
-          </section>
+          </CollapsiblePanel>
 
           {/* FT 部署 */}
-          <section className="panel" style={{ marginTop: "1rem" }}>
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "deploy-ft" ? null : "deploy-ft"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "deploy-ft"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>🚀 部署 FT 环境</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "deploy-ft" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "deploy-ft" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="deploy-ft"
+            title="部署 FT 环境"
+            icon="🚀"
+            isExpanded={expandedSection === "deploy-ft"}
+            onToggle={togglePanel}
+          >
                 {/* Appauto 配置 */}
                 <h3 style={{ marginTop: "0", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>Appauto 配置</h3>
                 <div className="form-grid">
@@ -4726,9 +4235,7 @@ function App() {
 
                 {message && <p className="error-message">{message}</p>}
                 {success && <p className="success-message">{success}</p>}
-              </div>
-            )}
-          </section>
+          </CollapsiblePanel>
 
           {/* 部署任务列表 */}
           <section className="panel" style={{ marginTop: "1rem" }}>
@@ -4754,32 +4261,7 @@ function App() {
                         <td>{task.display_id || task.id}</td>
                         <td>{task.model}</td>
                         <td>
-                          <span
-                            style={{
-                              padding: "0.25rem 0.5rem",
-                              borderRadius: "4px",
-                              fontSize: "0.875rem",
-                              fontWeight: "600",
-                              backgroundColor:
-                                task.status === "completed"
-                                  ? "#d1f2eb"
-                                  : task.status === "running"
-                                  ? "#fff3cd"
-                                  : task.status === "failed"
-                                  ? "#f8d7da"
-                                  : "#e2e3e5",
-                              color:
-                                task.status === "completed"
-                                  ? "#0d6832"
-                                  : task.status === "running"
-                                  ? "#856404"
-                                  : task.status === "failed"
-                                  ? "#721c24"
-                                  : "#383d41",
-                            }}
-                          >
-                            {task.status}
-                          </span>
+                          <StatusBadge status={task.status} />
                         </td>
                         <td>
                           {new Date(task.created_at).toLocaleString("zh-CN")}
@@ -4831,395 +4313,45 @@ function App() {
       )}
 
       {activeTab === "others" && (
-        <div>
-          {/* 硬件信息收集 */}
-          <section className="panel">
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "hardware-info" ? null : "hardware-info"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "hardware-info"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>🔍 硬件信息收集</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "hardware-info" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "hardware-info" && (
-              <div style={{ padding: "1.5rem" }}>
-                <p style={{ color: "#666", marginTop: "0", marginBottom: "1rem", fontSize: "0.9rem" }}>
-                  收集远程机器的硬件配置信息，包括 GPU、CPU、内存、磁盘、操作系统等，生成 JSON 报告文件。
-                </p>
-
-                <div className="form-row" style={{ marginBottom: "1rem" }}>
-                  <label>
-                    SSH 主机地址 *
-                    <input
-                      type="text"
-                      placeholder="例如: 192.168.1.100"
-                      value={sshHost}
-                      onChange={(e) => setSshHost(e.target.value)}
-                      required
-                    />
-                  </label>
-                </div>
-
-                <div className="form-row" style={{ marginBottom: "1rem" }}>
-                  <label>
-                    SSH 用户名 *
-                    <input
-                      type="text"
-                      placeholder="例如: root"
-                      value={sshUser}
-                      onChange={(e) => setSshUser(e.target.value)}
-                      required
-                    />
-                  </label>
-                </div>
-
-                <div className="form-row" style={{ marginBottom: "1rem" }}>
-                  <label>
-                    SSH 密码
-                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                      <input
-                        type={showSshPassword ? "text" : "password"}
-                        placeholder="SSH 密码（可选，留空则使用密钥认证）"
-                        value={sshPassword}
-                        onChange={(e) => setSshPassword(e.target.value)}
-                        style={{ flex: 1, paddingRight: "2.5rem" }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSshPassword(!showSshPassword)}
-                        style={{
-                          position: "absolute",
-                          right: "0.5rem",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "0.25rem",
-                          fontSize: "0.75rem",
-                          color: "#94a3b8",
-                        }}
-                        title={showSshPassword ? "隐藏密码" : "显示密码"}
-                      >
-                        {showSshPassword ? "隐藏" : "显示"}
-                      </button>
-                    </div>
-                  </label>
-                </div>
-
-                <div className="form-row" style={{ marginBottom: "1rem" }}>
-                  <label>
-                    SSH 端口
-                    <input
-                      type="number"
-                      placeholder="默认: 22"
-                      value={sshPort}
-                      onChange={(e) => setSshPort(e.target.value)}
-                    />
-                  </label>
-                </div>
-
-                <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
-                  <button
-                    onClick={async () => {
-                      if (!sshHost || !sshUser) {
-                        setError("请填写 SSH 主机地址和用户名");
-                        return;
-                      }
-
-                      setError(null);
-                      setSuccess(null);
-
-                      try {
-                        const response = await collectHardwareInfo({
-                          ssh_config: {
-                            host: sshHost,
-                            port: parseInt(sshPort) || 22,
-                            user: sshUser,
-                            auth_type: sshPassword ? "password" : "key",
-                            ...(sshPassword ? { password: sshPassword } : {}),
-                            timeout: 30,
-                          },
-                          timeout: 300,
-                        });
-
-                        setSuccess(`硬件信息收集任务已提交（任务 ID: ${response.task_id}），请在任务列表中查看结果`);
-
-                        // 自动刷新其他任务列表
-                        await loadOthersTasks();
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "提交失败");
-                      }
-                    }}
-                    disabled={!sshHost || !sshUser}
-                    style={{
-                      opacity: (!sshHost || !sshUser) ? 0.5 : 1,
-                      cursor: (!sshHost || !sshUser) ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    开始收集
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setSshHost("");
-                      setSshUser("");
-                      setSshPassword("");
-                      setSshPort("22");
-                      setError(null);
-                      setSuccess(null);
-                    }}
-                    style={{ background: "#6c757d" }}
-                  >
-                    重置
-                  </button>
-                </div>
-
-                {error && (
-                  <div style={{
-                    padding: "1rem",
-                    background: "#fee",
-                    border: "1px solid #fcc",
-                    borderRadius: "4px",
-                    color: "#c33",
-                    marginTop: "1rem"
-                  }}>
-                    {error}
-                  </div>
-                )}
-
-                {success && (
-                  <div style={{
-                    padding: "1rem",
-                    background: "#efe",
-                    border: "1px solid #cfc",
-                    borderRadius: "4px",
-                    color: "#3c3",
-                    marginTop: "1rem"
-                  }}>
-                    {success}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* 其他任务列表 */}
-          <section className="panel" style={{ marginTop: "1rem" }}>
-            <h2>其他任务列表</h2>
-            <div style={{ overflowX: "auto" }}>
-              <table className="tasks-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>状态</th>
-                    <th>任务类型</th>
-                    <th>创建者</th>
-                    <th>创建时间</th>
-                    <th>完成时间</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {othersTasks.map((task) => (
-                    <tr key={task.id}>
-                      <td>{task.display_id || task.id}</td>
-                      <td>
-                        <span
-                          className={`status-badge status-${task.status.toLowerCase()}`}
-                        >
-                          {task.status}
-                        </span>
-                      </td>
-                      <td>{task.parameters?.task_type || "hardware_info"}</td>
-                      <td>
-                        {task.user_email ? (
-                          <span style={{
-                            color: task.user_id === profile?.user_id ? "#28a745" : "#666",
-                            fontWeight: task.user_id === profile?.user_id ? "600" : "normal"
-                          }}>
-                            {task.user_email}
-                          </span>
-                        ) : (
-                          <span style={{ color: "#999" }}>未知</span>
-                        )}
-                      </td>
-                      <td>{new Date(task.created_at).toLocaleString()}</td>
-                      <td>
-                        {task.completed_at
-                          ? new Date(task.completed_at).toLocaleString()
-                          : "-"}
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
-                          {task.result_path && (
-                            <button
-                              className="secondary"
-                              onClick={() =>
-                                window.open(downloadUrl(task.id), "_blank")
-                              }
-                            >
-                              下载
-                            </button>
-                          )}
-                          {task.result_path && (
-                            <button
-                              className="secondary"
-                              onClick={() => handlePreview(task.id)}
-                              style={{ color: "#17a2b8" }}
-                            >
-                              预览
-                            </button>
-                          )}
-                          <button
-                            className="secondary"
-                            onClick={async () => {
-                              setLogsTaskId(task.id);
-                              logsTaskIdRef.current = task.id;
-                              setShowLogsModal(true);
-                              try {
-                                const response = await fetchTaskLogs(task.id);
-                                if (logsTaskIdRef.current === task.id) {
-                                  setCurrentLogs(response.logs || "No logs available");
-                                }
-                              } catch (err) {
-                                if (logsTaskIdRef.current === task.id) {
-                                  setCurrentLogs(
-                                    err instanceof Error ? err.message : "Failed to fetch logs"
-                                  );
-                                }
-                              }
-                            }}
-                            style={{ color: "#007bff" }}
-                          >
-                            日志
-                          </button>
-                          {/* Only show delete button if task belongs to current user */}
-                          {(!task.user_id || task.user_id === profile?.user_id) && (
-                            <button
-                              className="secondary"
-                              onClick={async () => {
-                                if (
-                                  confirm(`确定要删除任务 ${task.display_id || task.id} 吗？`)
-                                ) {
-                                  try {
-                                    await deleteTask(task.id);
-                                    await loadOthersTasks();
-                                  } catch (err) {
-                                    alert(
-                                      err instanceof Error
-                                        ? err.message
-                                        : "删除失败"
-                                    );
-                                  }
-                                }
-                              }}
-                              style={{ color: "#dc3545" }}
-                            >
-                              删除
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* 分页控件 */}
-            {othersTotalPages > 1 && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: "1rem",
-                  marginTop: "1.5rem",
-                  paddingTop: "1rem",
-                  borderTop: "1px solid #e0e0e0"
-                }}
-              >
-                <button
-                  className="secondary"
-                  onClick={() => setOthersCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={othersCurrentPage === 1}
-                  style={{
-                    opacity: othersCurrentPage === 1 ? 0.5 : 1,
-                    cursor: othersCurrentPage === 1 ? "not-allowed" : "pointer"
-                  }}
-                >
-                  上一页
-                </button>
-                <span style={{ color: "#666" }}>
-                  第 {othersCurrentPage} / {othersTotalPages} 页（共 {othersTotalTasks} 条）
-                </span>
-                <button
-                  className="secondary"
-                  onClick={() =>
-                    setOthersCurrentPage((p) => Math.min(othersTotalPages, p + 1))
-                  }
-                  disabled={othersCurrentPage === othersTotalPages}
-                  style={{
-                    opacity: othersCurrentPage === othersTotalPages ? 0.5 : 1,
-                    cursor: othersCurrentPage === othersTotalPages ? "not-allowed" : "pointer"
-                  }}
-                >
-                  下一页
-                </button>
-              </div>
-            )}
-          </section>
-        </div>
+        <OthersPage
+          expandedSection={expandedSection}
+          togglePanel={togglePanel}
+          sshHost={sshHost}
+          setSshHost={setSshHost}
+          sshUser={sshUser}
+          setSshUser={setSshUser}
+          sshPassword={sshPassword}
+          setSshPassword={setSshPassword}
+          sshPort={sshPort}
+          setSshPort={setSshPort}
+          showSshPassword={showSshPassword}
+          setShowSshPassword={setShowSshPassword}
+          error={error}
+          setError={setError}
+          success={success}
+          setSuccess={setSuccess}
+          othersTasks={othersTasks}
+          loadOthersTasks={loadOthersTasks}
+          profile={profile}
+          othersPagination={othersPagination}
+          handlePreview={handlePreview}
+          setLogsTaskId={setLogsTaskId}
+          logsTaskIdRef={logsTaskIdRef}
+          logsModal={logsModal}
+          setCurrentLogs={setCurrentLogs}
+        />
       )}
 
       {activeTab === "system" && profile?.role === "admin" && (
         <div>
           {/* 系统管理 */}
-          <section className="panel">
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "system-management" ? null : "system-management"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "system-management"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>⚙️ 系统管理</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "system-management" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "system-management" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="system-management"
+            title="系统管理"
+            icon="⚙️"
+            isExpanded={expandedSection === "system-management"}
+            onToggle={togglePanel}
+          >
                 <h3 style={{ marginTop: "0", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>Appauto 版本管理</h3>
                 <p style={{ color: "#666", marginBottom: "1rem" }}>
                   当前 Appauto 路径: {appautoPath || "加载中..."}
@@ -5301,39 +4433,16 @@ function App() {
                 </button>
               </div>
             </div>
-              </div>
-            )}
-          </section>
+          </CollapsiblePanel>
 
           {/* 用户管理 */}
-          <section className="panel" style={{ marginTop: "1rem" }}>
-            <div
-              className="collapsible-header"
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === "user-management" ? null : "user-management"
-                )
-              }
-              style={{
-                cursor: "pointer",
-                padding: "1rem",
-                borderBottom:
-                  expandedSection === "user-management"
-                    ? "1px solid #e0e0e0"
-                    : "none",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h2 style={{ margin: 0 }}>👥 用户管理</h2>
-              <span style={{ fontSize: "1.5rem" }}>
-                {expandedSection === "user-management" ? "▼" : "▶"}
-              </span>
-            </div>
-
-            {expandedSection === "user-management" && (
-              <div style={{ padding: "1.5rem" }}>
+          <CollapsiblePanel
+            id="user-management"
+            title="用户管理"
+            icon="👥"
+            isExpanded={expandedSection === "user-management"}
+            onToggle={togglePanel}
+          >
                 <div style={{ marginTop: "0", marginBottom: "1rem", display: "flex", gap: "1rem", alignItems: "center" }}>
               <button
                 className="secondary"
@@ -5504,9 +4613,7 @@ function App() {
             ) : (
               <p style={{ color: "#999" }}>暂无用户数据</p>
             )}
-              </div>
-            )}
-          </section>
+          </CollapsiblePanel>
 
           {/* 系统维护任务列表 */}
           <section className="panel" style={{ marginTop: "1rem" }}>
@@ -5563,7 +4670,7 @@ function App() {
                             onClick={async () => {
                               setLogsTaskId(task.id);
                               logsTaskIdRef.current = task.id;
-                              setShowLogsModal(true);
+                              logsModal.open();
                               try {
                                 const response = await fetchTaskLogs(task.id);
                                 if (logsTaskIdRef.current === task.id) {
@@ -5614,109 +4721,24 @@ function App() {
             </div>
 
             {/* 分页控件 */}
-            {systemTotalPages > 1 && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: "1rem",
-                  marginTop: "1.5rem",
-                  paddingTop: "1rem",
-                  borderTop: "1px solid #e0e0e0"
-                }}
-              >
-                <button
-                  className="secondary"
-                  onClick={() => setSystemCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={systemCurrentPage === 1}
-                  style={{
-                    opacity: systemCurrentPage === 1 ? 0.5 : 1,
-                    cursor: systemCurrentPage === 1 ? "not-allowed" : "pointer"
-                  }}
-                >
-                  上一页
-                </button>
-                <span style={{ color: "#666" }}>
-                  第 {systemCurrentPage} / {systemTotalPages} 页（共 {systemTotalTasks} 条）
-                </span>
-                <button
-                  className="secondary"
-                  onClick={() =>
-                    setSystemCurrentPage((p) => Math.min(systemTotalPages, p + 1))
-                  }
-                  disabled={systemCurrentPage === systemTotalPages}
-                  style={{
-                    opacity: systemCurrentPage === systemTotalPages ? 0.5 : 1,
-                    cursor: systemCurrentPage === systemTotalPages ? "not-allowed" : "pointer"
-                  }}
-                >
-                  下一页
-                </button>
-              </div>
-            )}
+            <Pagination
+              currentPage={systemPagination.currentPage}
+              totalPages={systemPagination.totalPages}
+              onPageChange={systemPagination.perfPagination.setCurrentPage}
+            />
           </section>
         </div>
       )}
 
       {/* 预览结果模态框 */}
-      {showPreviewModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => setShowPreviewModal(false)}
-        >
-          <div
-            style={{
-              backgroundColor: theme === "dark" ? "#2a2a2a" : "white",
-              padding: "2rem",
-              borderRadius: "8px",
-              maxWidth: "95%",
-              maxHeight: "90%",
-              overflow: "auto",
-              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-              minWidth: "800px",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "1.5rem",
-              }}
-            >
-              <h2 style={{ margin: 0, color: theme === "dark" ? "#f0f0f0" : "#1a1a1a", fontSize: "1.5rem" }}>
-                {previewData && previewData.file_type === "json" ? "硬件信息预览" : "性能测试结果预览"}
-              </h2>
-              <button
-                onClick={() => setShowPreviewModal(false)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  cursor: "pointer",
-                  border: "1px solid #d0d0d0",
-                  borderRadius: "4px",
-                  backgroundColor: "#f8f9fa",
-                  color: "#333",
-                  fontWeight: "500",
-                }}
-              >
-                关闭
-              </button>
-            </div>
-
-            {previewLoading ? (
+      <Modal
+        isOpen={previewModal.isOpen}
+        onClose={() => previewModal.close()}
+        title={previewData && previewData.file_type === "json" ? "硬件信息预览" : "性能测试结果预览"}
+        theme={theme}
+        minWidth="800px"
+      >
+        {previewLoading ? (
               <div style={{ textAlign: "center", padding: "3rem", color: theme === "dark" ? "#ccc" : "#666" }}>
                 <p>加载中...</p>
               </div>
@@ -6069,139 +5091,77 @@ function App() {
                 )}
               </div>
             ) : (
-              <div style={{ textAlign: "center", padding: "3rem", color: theme === "dark" ? "#ccc" : "#666" }}>
-                <p>无预览数据</p>
-              </div>
-            )}
+          <div style={{ textAlign: "center", padding: "3rem", color: theme === "dark" ? "#ccc" : "#666" }}>
+            <p>无预览数据</p>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* 日志查看模态框 */}
-      {showLogsModal && (
-        <div
+      <Modal
+        isOpen={logsModal.isOpen}
+        onClose={() => {
+          logsTaskIdRef.current = null;
+          logsModal.close();
+        }}
+        title={`任务 ${logsTaskId} 的执行日志`}
+        maxWidth="90%"
+        headerActions={
+          <button
+            onClick={async () => {
+              if (logsTaskId) {
+                try {
+                  const response = await fetchTaskLogs(logsTaskId);
+                  // Only update if this is still the current task
+                  if (logsTaskIdRef.current === logsTaskId) {
+                    setCurrentLogs(response.logs);
+                  }
+                } catch (err) {
+                  console.error("Failed to refresh logs:", err);
+                }
+              }
+            }}
+            style={{
+              padding: "0.5rem 1rem",
+              cursor: "pointer",
+              border: "1px solid #d0d0d0",
+              borderRadius: "4px",
+              backgroundColor: "#f8f9fa",
+              color: "#333",
+              fontWeight: "500",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#e9ecef";
+              e.currentTarget.style.borderColor = "#adb5bd";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#f8f9fa";
+              e.currentTarget.style.borderColor = "#d0d0d0";
+            }}
+          >
+            🔄 刷新
+          </button>
+        }
+      >
+        <pre
           style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => {
-            logsTaskIdRef.current = null;
-            setShowLogsModal(false);
+            backgroundColor: "#2d2d2d",
+            color: "#f8f8f2",
+            padding: "1rem",
+            borderRadius: "4px",
+            overflow: "auto",
+            maxHeight: "70vh",
+            fontSize: "0.875rem",
+            lineHeight: "1.5",
+            whiteSpace: "pre-wrap",
+            wordWrap: "break-word",
+            border: "1px solid #444",
           }}
         >
-          <div
-            style={{
-              backgroundColor: "white",
-              padding: "2rem",
-              borderRadius: "8px",
-              maxWidth: "90%",
-              maxHeight: "90%",
-              overflow: "auto",
-              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "1rem",
-              }}
-            >
-              <h2 style={{ margin: 0, color: "#1a1a1a", fontSize: "1.25rem" }}>任务 {logsTaskId} 的执行日志</h2>
-              <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-                <button
-                  onClick={async () => {
-                    if (logsTaskId) {
-                      try {
-                        const response = await fetchTaskLogs(logsTaskId);
-                        // Only update if this is still the current task
-                        if (logsTaskIdRef.current === logsTaskId) {
-                          setCurrentLogs(response.logs);
-                        }
-                      } catch (err) {
-                        console.error("Failed to refresh logs:", err);
-                      }
-                    }
-                  }}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    cursor: "pointer",
-                    border: "1px solid #d0d0d0",
-                    borderRadius: "4px",
-                    backgroundColor: "#f8f9fa",
-                    color: "#333",
-                    fontWeight: "500",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#e9ecef";
-                    e.currentTarget.style.borderColor = "#adb5bd";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f8f9fa";
-                    e.currentTarget.style.borderColor = "#d0d0d0";
-                  }}
-                >
-                  🔄 刷新
-                </button>
-                <button
-                  onClick={() => {
-                    logsTaskIdRef.current = null;
-                    setShowLogsModal(false);
-                  }}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    cursor: "pointer",
-                    border: "1px solid #d0d0d0",
-                    borderRadius: "4px",
-                    backgroundColor: "#f8f9fa",
-                    color: "#333",
-                    fontWeight: "500",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#e9ecef";
-                    e.currentTarget.style.borderColor = "#adb5bd";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f8f9fa";
-                    e.currentTarget.style.borderColor = "#d0d0d0";
-                  }}
-                >
-                  关闭
-                </button>
-              </div>
-            </div>
-            <pre
-              style={{
-                backgroundColor: "#2d2d2d",
-                color: "#f8f8f2",
-                padding: "1rem",
-                borderRadius: "4px",
-                overflow: "auto",
-                maxHeight: "70vh",
-                fontSize: "0.875rem",
-                lineHeight: "1.5",
-                whiteSpace: "pre-wrap",
-                wordWrap: "break-word",
-                border: "1px solid #444",
-              }}
-            >
-              {currentLogs}
-            </pre>
-          </div>
-        </div>
-      )}
+          {currentLogs}
+        </pre>
+      </Modal>
     </div>
   );
 }
