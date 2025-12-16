@@ -103,3 +103,12 @@ Thumbs.db
 # Misc
 .AppleDouble
 .LSOverride
+
+# Documentation and temporary files
+DOCUMENTATION_ISSUES.md
+
+# Configuration files
+logging.ini
+
+# Docker compose variants
+**/ft-docker-compose*.yaml
