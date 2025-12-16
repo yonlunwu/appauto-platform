@@ -113,10 +113,10 @@ class ModelScanner:
 
                 # 获取目录列表（只包含目录，不包含文件）
                 # 使用 ls -d */ 只列出目录
-                # 排除非模型目录：AMES、perftest、output 等
-                exclude_pattern = "AMES|perftest|output"
+                # 排除非模型目录：AMES、perftest、output、log 等（子串匹配）
+                exclude_pattern = "AMES|perftest|output|log"
                 if not include_hidden:
-                    exclude_pattern += "|\\..*"  # 排除隐藏目录
+                    exclude_pattern += "|^\\."  # 排除以点号开头的隐藏目录
 
                 ls_cmd = f"cd '{base_dir}' && ls -d */ 2>/dev/null | sed 's|/$||' | egrep -v '{exclude_pattern}'"
 
