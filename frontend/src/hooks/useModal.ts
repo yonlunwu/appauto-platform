@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-interface UseModalReturn {
+export interface UseModalReturn {
   isOpen: boolean;
   open: () => void;
   close: () => void;

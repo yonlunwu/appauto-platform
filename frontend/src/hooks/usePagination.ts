@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-interface UsePaginationReturn {
+export interface UsePaginationReturn {
   currentPage: number;
   totalPages: number;
   totalTasks: number;

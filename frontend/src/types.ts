@@ -56,12 +56,30 @@ export interface TestRunForm {
   enable_thinking?: boolean;
   keep_model?: boolean;
   launch_timeout?: number;
+
+  // 基础测试配置 (Pytest)
+  testpaths?: string;
+  case_level?: string;
+  model_priority?: string;
+  lark_user?: string;
+  topic?: string;
+  notify_group?: string;
+  report_server?: string;
+  report_url?: string;
+  pytest_args?: string;
+
+  // 部署配置
+  ip?: string;
+  tag?: string;
+  tar_name?: string;
+  image?: string;
 }
 
 export interface TestRunResponse {
   task_id: number;
   status: string;
-  concurrency: number;
+  concurrency?: number;
+  display_id?: number | null;
 }
 
 export interface TaskSummary {
@@ -197,3 +215,25 @@ export interface CancelTaskResponse {
   message: string;
 }
 
+// 部署任务类型
+export interface DeployTask {
+  id: number;
+  uuid: string;
+  display_id?: number | null;
+  engine: string;
+  model: string;
+  scenario: "amaas" | "ft";
+  ip: string;
+  tag?: string;
+  status: string;
+  created_at: string;
+  completed_at?: string | null;
+  error_message?: string | null;
+  result_path?: string | null;
+  archived_path?: string | null;
+  parameters: Record<string, unknown>;
+  summary?: Record<string, unknown> | null;
+  ssh_config?: Record<string, unknown> | null;
+  user_id?: number | null;
+  user_email?: string | null;
+}
