@@ -577,14 +577,14 @@ fi
 print_status "Frontend build complete"
 
 ###############################################################################
-# Phase 4: Service Configuration
+# Phase 4: Service Configuration (Part 1 - Setup)
 ###############################################################################
 
-print_phase "4: Service Configuration"
+print_phase "4: Service Configuration (Setup)"
 
-# Setup systemd service (if not skipped)
+# Setup systemd service configuration (if not skipped)
 if [ "$SKIP_SERVICES" = "false" ]; then
-    print_info "Setting up systemd service..."
+    print_info "Setting up systemd service configuration..."
 
     cat > /etc/systemd/system/llm-perf-backend.service <<EOF
 [Unit]
@@ -610,17 +610,7 @@ EOF
 
     systemctl daemon-reload
     systemctl enable llm-perf-backend.service > /dev/null 2>&1
-    systemctl restart llm-perf-backend.service
-
-    sleep 2
-
-    if systemctl is-active --quiet llm-perf-backend.service; then
-        print_status "Backend service started"
-    else
-        print_error "Backend service failed to start"
-        print_info "Check logs: journalctl -u llm-perf-backend -n 50"
-        exit 1
-    fi
+    print_status "Backend service configured (not started yet)"
 else
     print_warning "Skipped systemd service setup"
 fi
@@ -763,6 +753,30 @@ else:
 done
 
 print_status "Venv pre-creation completed"
+
+###############################################################################
+# Phase 4: Service Configuration (Part 2 - Start Services)
+###############################################################################
+
+print_phase "4: Service Configuration (Start Services)"
+
+# Start backend service (if not skipped)
+if [ "$SKIP_SERVICES" = "false" ]; then
+    print_info "Starting backend service..."
+    systemctl restart llm-perf-backend.service
+
+    sleep 2
+
+    if systemctl is-active --quiet llm-perf-backend.service; then
+        print_status "Backend service started successfully"
+    else
+        print_error "Backend service failed to start"
+        print_info "Check logs: journalctl -u llm-perf-backend -n 50"
+        exit 1
+    fi
+else
+    print_warning "Skipped backend service start"
+fi
 
 ###############################################################################
 # Phase 6: Deployment Verification
