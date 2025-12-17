@@ -62,9 +62,28 @@ print_status "Checking system requirements..."
 print_status "Updating system packages..."
 sudo apt-get update
 
+# Install basic tools needed for adding PPAs
+sudo apt-get install -y software-properties-common
+
+# Check if Python 3.11 is available
+if ! apt-cache policy python3.11 | grep -q "Candidate:.*3.11"; then
+    print_warning "Python 3.11 not found in default repositories"
+    print_status "Adding deadsnakes PPA for Python 3.11..."
+
+    if ! sudo add-apt-repository -y ppa:deadsnakes/ppa; then
+        print_error "Failed to add deadsnakes PPA"
+        print_warning "Your Ubuntu version may not support Python 3.11"
+        print_warning "Checking available Python versions..."
+        apt-cache search "^python3\.[0-9]+$" | grep "^python3\." | sort -V | tail -5
+        exit 1
+    fi
+
+    sudo apt-get update
+fi
+
 # Install system dependencies
 print_status "Installing system dependencies..."
-sudo apt-get install -y \
+if ! sudo apt-get install -y \
     python3.11 \
     python3.11-venv \
     python3.11-dev \
@@ -75,7 +94,12 @@ sudo apt-get install -y \
     sqlite3 \
     git \
     curl \
-    build-essential
+    build-essential; then
+    print_error "Failed to install system dependencies"
+    exit 1
+fi
+
+print_status "System dependencies installed successfully"
 
 # Upgrade Node.js to latest LTS if needed
 NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
