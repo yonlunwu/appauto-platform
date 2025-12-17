@@ -215,8 +215,27 @@ apt-get install -y -qq \
 NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
 if [ "$NODE_VERSION" -lt 18 ]; then
     print_status "Upgrading Node.js to LTS version..."
-    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - > /dev/null 2>&1
-    apt-get install -y -qq nodejs > /dev/null 2>&1
+    print_info "Current version: $(node --version), upgrading to v20.x..."
+
+    # Download and run NodeSource setup script
+    if ! curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; then
+        print_error "Failed to setup NodeSource repository"
+        print_info "Please run manually:"
+        echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
+        echo "  sudo apt-get install -y nodejs"
+        exit 1
+    fi
+
+    # Install Node.js
+    if ! apt-get install -y nodejs; then
+        print_error "Failed to install Node.js"
+        print_info "Please run manually: sudo apt-get install -y nodejs"
+        exit 1
+    fi
+
+    # Verify installation
+    NEW_NODE_VERSION=$(node --version)
+    print_status "Node.js upgraded successfully to $NEW_NODE_VERSION"
 fi
 
 # Install pnpm globally
