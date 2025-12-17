@@ -93,8 +93,22 @@ class VenvManager:
                 logger.error(f"Failed to clone appauto: {result.stderr}")
                 return False
 
+            # Fetch all branches from origin
+            logger.info(f"Fetching all branches from origin")
+            result = subprocess.run(
+                ["git", "fetch", "origin"],
+                cwd=appauto_clone,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode != 0:
+                logger.error(f"Failed to fetch branches: {result.stderr}")
+                return False
+
             # Checkout the specified branch
             logger.info(f"Checking out branch '{branch}'")
+            # Try local branch first, if fails, checkout from remote
             result = subprocess.run(
                 ["git", "checkout", branch],
                 cwd=appauto_clone,
@@ -103,8 +117,18 @@ class VenvManager:
                 timeout=60,
             )
             if result.returncode != 0:
-                logger.error(f"Failed to checkout branch '{branch}': {result.stderr}")
-                return False
+                # If local checkout fails, try creating from remote
+                logger.info(f"Local branch not found, trying remote branch origin/{branch}")
+                result = subprocess.run(
+                    ["git", "checkout", "-b", branch, f"origin/{branch}"],
+                    cwd=appauto_clone,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                if result.returncode != 0:
+                    logger.error(f"Failed to checkout branch '{branch}': {result.stderr}")
+                    return False
 
             # Create virtual environment
             logger.info(f"Creating Python virtual environment")
