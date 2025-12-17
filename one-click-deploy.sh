@@ -315,9 +315,42 @@ else
     chown -R "$DEPLOY_USER":"$DEPLOY_USER" .venv
 fi
 
-# Install Python dependencies
+# Install uv (modern Python package installer with better dependency resolution)
+if ! command -v uv &> /dev/null; then
+    print_status "Installing uv (fast Python package installer)..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh > /dev/null 2>&1
+
+    # Make uv available system-wide by copying to /usr/local/bin
+    if [ -f "$HOME/.cargo/bin/uv" ]; then
+        cp "$HOME/.cargo/bin/uv" /usr/local/bin/uv
+        chmod +x /usr/local/bin/uv
+        print_status "uv installed successfully"
+    elif [ -f "/root/.cargo/bin/uv" ]; then
+        cp "/root/.cargo/bin/uv" /usr/local/bin/uv
+        chmod +x /usr/local/bin/uv
+        print_status "uv installed successfully"
+    else
+        print_warning "uv installation may have issues, but continuing..."
+    fi
+fi
+
+# Install Python dependencies using uv
 print_status "Installing Python dependencies (this may take a few minutes)..."
-sudo -u "$DEPLOY_USER" bash -c "source .venv/bin/activate && pip install --upgrade pip -q && pip install -e . -q"
+print_info "Using uv for better dependency resolution..."
+
+# Ensure uv is in PATH for the deploy user
+if ! sudo -u "$DEPLOY_USER" bash -c "export PATH=/usr/local/bin:\$PATH && source .venv/bin/activate && pip install --upgrade pip -q && uv pip install -e ."; then
+    print_error "Failed to install Python dependencies with uv"
+    print_warning "Trying with standard pip and legacy resolver..."
+
+    # Fallback to pip with legacy resolver
+    if ! sudo -u "$DEPLOY_USER" bash -c "source .venv/bin/activate && pip install --use-deprecated=legacy-resolver -e ."; then
+        print_error "Failed to install Python dependencies"
+        print_info "Check the error messages above"
+        print_info "Appauto path: $APPAUTO_ABS_PATH"
+        exit 1
+    fi
+fi
 
 # Initialize database
 print_status "Initializing database..."
