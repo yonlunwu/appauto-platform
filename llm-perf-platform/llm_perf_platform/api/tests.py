@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any, Dict, List
 import math
+import os
 
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from fastapi.responses import FileResponse
@@ -639,12 +640,17 @@ def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) 
 
     try:
         # 获取所有本地和远程分支
+        # 设置 GIT_PAGER=cat 禁用交互式分页器
+        env = os.environ.copy()
+        env["GIT_PAGER"] = "cat"
+
         result = subprocess.run(
             ["git", "branch", "-a"],
             cwd=appauto_source,
             capture_output=True,
             text=True,
             timeout=10,
+            env=env,
         )
 
         if result.returncode != 0:
