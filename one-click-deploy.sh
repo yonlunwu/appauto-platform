@@ -339,23 +339,6 @@ fi
 UV_VERSION_STR=$(uv --version)
 print_status "uv ready: $UV_VERSION_STR"
 
-# Check and install alembic
-print_info "Checking alembic..."
-if ! command -v alembic &> /dev/null; then
-    print_warning "alembic not found, installing..."
-    if ! apt-get install -y alembic; then
-        print_error "Failed to install alembic"
-        exit 1
-    fi
-fi
-
-if ! alembic --version &> /dev/null; then
-    print_error "alembic installation verification failed"
-    exit 1
-fi
-ALEMBIC_VERSION_STR=$(alembic --version 2>&1 | head -1)
-print_status "alembic ready: $ALEMBIC_VERSION_STR"
-
 # Check and install Nginx
 print_info "Checking Nginx..."
 if ! command -v nginx &> /dev/null; then
