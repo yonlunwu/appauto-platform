@@ -112,3 +112,10 @@ logging.ini
 
 # Docker compose variants
 **/ft-docker-compose*.yaml
+
+# TypeScript build info
+*.tsbuildinfo
+
+# TypeScript compiled files (when .ts exists)
+vite.config.js
+vite.config.d.ts
