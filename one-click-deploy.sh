@@ -435,6 +435,10 @@ cd "$INSTALL_DIR/frontend"
 print_info "Setting file ownership..."
 chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$INSTALL_DIR/frontend"
 
+# Configure pnpm to use Taobao registry (faster in China)
+print_info "Configuring pnpm to use Taobao registry..."
+sudo -u "$DEPLOY_USER" pnpm config set registry https://registry.npmmirror.com
+
 # Install frontend dependencies
 print_info "Installing frontend dependencies with pnpm (this may take a few minutes)..."
 if ! sudo -u "$DEPLOY_USER" pnpm install; then
