@@ -28,6 +28,7 @@
 ### 前端
 - React 18 + TypeScript
 - Vite
+- pnpm（包管理器）
 - CSS Variables（主题系统）
 
 ## 快速开始
@@ -65,14 +66,14 @@ uvicorn llm_perf_platform.main:app --host 0.0.0.0 --port 8000 --reload
 cd frontend
 
 # 安装依赖
-npm install
+pnpm install
 
 # （可选）配置开发环境 API 地址
 # cp .env.example .env
 # vi .env  # 如果需要修改 API 地址
 
 # 启动开发服务器
-npm run dev
+pnpm dev
 ```
 
 访问 http://localhost:5173 即可使用平台。
@@ -96,6 +97,7 @@ npm run dev
 - Ubuntu 20.04+ / Debian 11+
 - Python 3.10+
 - Node.js 18+
+- pnpm 8+
 - Nginx
 - SQLite3
 
@@ -113,6 +115,9 @@ sudo apt-get install -y \
     sqlite3 \
     git \
     build-essential
+
+# 安装 pnpm（推荐）
+npm install -g pnpm
 ```
 
 #### 后端部署
@@ -144,10 +149,10 @@ mkdir -p logs results
 cd frontend
 
 # 安装依赖
-npm install
+pnpm install
 
 # 构建生产版本
-npm run build
+pnpm build
 ```
 
 #### 配置 systemd 服务
@@ -351,8 +356,9 @@ alembic history
 
 ### 前端构建失败
 1. 检查 Node.js 版本：`node --version` (需要 >= 18)
-2. 清理缓存：`rm -rf node_modules package-lock.json && npm install`
-3. 检查构建日志
+2. 检查 pnpm 版本：`pnpm --version` (需要 >= 8)
+3. 清理缓存：`rm -rf node_modules pnpm-lock.yaml && pnpm install`
+4. 检查构建日志
 
 ### 前端 API 请求失败
 1. 检查浏览器控制台网络请求

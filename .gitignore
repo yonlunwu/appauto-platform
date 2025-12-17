@@ -68,6 +68,11 @@ dist/
 out/
 build/
 
+# Package manager lock files
+package-lock.json
+yarn.lock
+# pnpm-lock.yaml should be committed
+
 # IDE
 .vscode/
 .idea/
