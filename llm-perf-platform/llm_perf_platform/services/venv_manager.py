@@ -154,7 +154,7 @@ class VenvManager:
             env = os.environ.copy()
             env["VIRTUAL_ENV"] = str(venv_path / ".venv")
             result = subprocess.run(
-                ["uv", "pip", "install", "-e", str(appauto_clone)],
+                ["uv", "pip", "install", "-e", str(appauto_clone), "-i", "https://pypi.tuna.tsinghua.edu.cn/simple"],
                 cwd=venv_path,
                 capture_output=True,
                 text=True,
