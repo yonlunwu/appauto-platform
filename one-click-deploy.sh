@@ -294,17 +294,25 @@ echo "  Python:  $(python3.11 --version)"
 print_status "Setting up backend..."
 cd "$INSTALL_DIR/llm-perf-platform"
 
+# Ensure proper ownership of the project directory
+print_info "Setting proper ownership for project files..."
+chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$INSTALL_DIR/llm-perf-platform"
+
 # Update pyproject.toml with correct appauto path
 print_status "Configuring appauto dependency..."
 if grep -q "file:///Users/ryanyang/work/approaching/code/appauto" pyproject.toml; then
     sed -i.bak "s|file:///Users/ryanyang/work/approaching/code/appauto|file://$APPAUTO_ABS_PATH|g" pyproject.toml
     rm -f pyproject.toml.bak
+    chown "$DEPLOY_USER":"$DEPLOY_USER" pyproject.toml
 fi
 
 # Create Python virtual environment
 if [ ! -d ".venv" ]; then
     print_status "Creating Python virtual environment..."
     sudo -u "$DEPLOY_USER" python3.11 -m venv .venv
+else
+    print_info "Virtual environment already exists, checking ownership..."
+    chown -R "$DEPLOY_USER":"$DEPLOY_USER" .venv
 fi
 
 # Install Python dependencies
@@ -328,6 +336,10 @@ chown -R "$DEPLOY_USER":"$DEPLOY_USER" logs results
 # Setup Frontend
 print_status "Setting up frontend..."
 cd "$INSTALL_DIR/frontend"
+
+# Ensure proper ownership of the frontend directory
+print_info "Setting proper ownership for frontend files..."
+chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$INSTALL_DIR/frontend"
 
 # Install frontend dependencies
 print_status "Installing frontend dependencies (this may take a few minutes)..."
