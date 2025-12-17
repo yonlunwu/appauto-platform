@@ -1,12 +1,6 @@
 # 快速部署指南
 
-> ⚠️ **重要提示**: 此文档描述的自动化部署脚本（`one-click-deploy.sh`、`setup-services.sh`、`setup-nginx.sh`）目前尚未开发完成。
->
-> **请参考 [主 README.md](../../README.md) 中的手动部署步骤进行部署。**
->
-> 此文档保留用于未来自动化部署功能的开发参考。
-
-最简单的方式部署 LLM Performance Test Platform 到 Ubuntu 22.04 LTS。
+使用一键部署脚本快速将 LLM Performance Test Platform 部署到 Ubuntu 22.04 LTS。
 
 ## 前置要求
 

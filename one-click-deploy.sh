@@ -219,9 +219,13 @@ if [ "$NODE_VERSION" -lt 18 ]; then
     apt-get install -y -qq nodejs > /dev/null 2>&1
 fi
 
+# Install pnpm globally
+print_status "Installing pnpm package manager..."
+npm install -g pnpm > /dev/null 2>&1
+
 print_info "Installed versions:"
 echo "  Node.js: $(node --version)"
-echo "  npm:     $(npm --version)"
+echo "  pnpm:    $(pnpm --version)"
 echo "  Python:  $(python3.11 --version)"
 
 # Setup Backend
@@ -265,11 +269,11 @@ cd "$INSTALL_DIR/frontend"
 
 # Install frontend dependencies
 print_status "Installing frontend dependencies (this may take a few minutes)..."
-sudo -u "$DEPLOY_USER" npm install --silent 2>/dev/null
+sudo -u "$DEPLOY_USER" pnpm install --silent 2>/dev/null
 
 # Build frontend for production
 print_status "Building frontend for production..."
-sudo -u "$DEPLOY_USER" npm run build --silent 2>/dev/null
+sudo -u "$DEPLOY_USER" pnpm build --silent 2>/dev/null
 
 # Setup systemd service (if not skipped)
 if [ "$SKIP_SERVICES" = "false" ]; then

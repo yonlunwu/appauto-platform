@@ -85,8 +85,12 @@ if [ "$NODE_VERSION" -lt 18 ]; then
     sudo apt-get install -y nodejs
 fi
 
+# Install pnpm globally
+print_status "Installing pnpm package manager..."
+sudo npm install -g pnpm
+
 print_status "Node.js version: $(node --version)"
-print_status "npm version: $(npm --version)"
+print_status "pnpm version: $(pnpm --version)"
 print_status "Python version: $(python3.11 --version)"
 
 # Navigate to install directory
@@ -155,11 +159,11 @@ cd ../frontend
 
 # Install frontend dependencies
 print_status "Installing frontend dependencies..."
-npm install
+pnpm install
 
 # Build frontend for production
 print_status "Building frontend..."
-npm run build
+pnpm build
 
 print_status "Deployment preparation completed!"
 echo ""
