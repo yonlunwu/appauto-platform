@@ -595,7 +595,8 @@ After=network.target
 Type=simple
 User=$DEPLOY_USER
 WorkingDirectory=$INSTALL_DIR/llm-perf-platform
-Environment="PATH=$INSTALL_DIR/llm-perf-platform/.venv/bin"
+Environment="PATH=$INSTALL_DIR/llm-perf-platform/.venv/bin:/usr/local/bin"
+Environment="APPAUTO_SOURCE_PATH=$APPAUTO_ABS_PATH"
 ExecStart=$INSTALL_DIR/llm-perf-platform/.venv/bin/uvicorn llm_perf_platform.main:app --host 0.0.0.0 --port $BACKEND_PORT --workers 4
 Restart=always
 RestartSec=10

@@ -21,10 +21,35 @@ fi
 DEPLOY_USER=${DEPLOY_USER:-$SUDO_USER}
 INSTALL_DIR=${INSTALL_DIR:-$(pwd)}
 BACKEND_PORT=${BACKEND_PORT:-8000}
+APPAUTO_PATH=${APPAUTO_PATH:-""}
+
+# Try to detect appauto path if not provided
+if [ -z "$APPAUTO_PATH" ]; then
+    # Check common locations
+    for path in "../appauto" "../../appauto" "$HOME/work/approaching/code/appauto"; do
+        if [ -d "$path" ]; then
+            APPAUTO_PATH=$(cd "$path" && pwd)
+            break
+        fi
+    done
+fi
+
+if [ -z "$APPAUTO_PATH" ]; then
+    echo -e "${YELLOW}Warning: APPAUTO_PATH not set. Please provide it via environment variable:${NC}"
+    echo "  APPAUTO_PATH=/path/to/appauto sudo ./setup-services.sh"
+    echo ""
+    read -p "Enter appauto path: " APPAUTO_PATH
+    if [ -z "$APPAUTO_PATH" ] || [ ! -d "$APPAUTO_PATH" ]; then
+        echo -e "${RED}Invalid appauto path${NC}"
+        exit 1
+    fi
+    APPAUTO_PATH=$(cd "$APPAUTO_PATH" && pwd)
+fi
 
 echo -e "${GREEN}Setting up systemd services...${NC}"
 echo "Deploy User: $DEPLOY_USER"
 echo "Install Directory: $INSTALL_DIR"
+echo "Appauto Path: $APPAUTO_PATH"
 
 # Create backend service file
 cat > /etc/systemd/system/llm-perf-backend.service <<EOF
@@ -36,7 +61,8 @@ After=network.target
 Type=simple
 User=$DEPLOY_USER
 WorkingDirectory=$INSTALL_DIR/llm-perf-platform
-Environment="PATH=$INSTALL_DIR/llm-perf-platform/.venv/bin"
+Environment="PATH=$INSTALL_DIR/llm-perf-platform/.venv/bin:/usr/local/bin"
+Environment="APPAUTO_SOURCE_PATH=$APPAUTO_PATH"
 ExecStart=$INSTALL_DIR/llm-perf-platform/.venv/bin/uvicorn llm_perf_platform.main:app --host 0.0.0.0 --port $BACKEND_PORT --workers 4
 Restart=always
 RestartSec=10
