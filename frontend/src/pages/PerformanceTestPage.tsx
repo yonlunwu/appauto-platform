@@ -1352,7 +1352,8 @@ export function PerformanceTestPage({
                   type="number"
                   value={form.output_length}
                   onChange={(e) => {
-                    updateForm("output_length", e.target.value === "" ? undefined : parseInt(e.target.value));
+                    const value = e.target.value === "" ? undefined : Number(e.target.value);
+                    updateForm("output_length", value);
                     if (e.target.value) {
                       setValidationErrors(prev => {
                         const next = new Set(prev);

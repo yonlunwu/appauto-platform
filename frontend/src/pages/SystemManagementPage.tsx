@@ -371,8 +371,8 @@ export const SystemManagementPage: React.FC<SystemManagementPageProps> = ({
                       {task.status}
                     </span>
                   </td>
-                  <td>{task.parameters?.operation || "-"}</td>
-                  <td>{task.parameters?.branch || "-"}</td>
+                  <td>{String(task.parameters?.operation || "-")}</td>
+                  <td>{String(task.parameters?.branch || "-")}</td>
                   <td>
                     {task.user_email ? (
                       <span style={{
