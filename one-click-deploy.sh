@@ -724,10 +724,51 @@ else
 fi
 
 ###############################################################################
-# Phase 5: Deployment Verification
+# Phase 5: Pre-create Appauto Virtual Environments
 ###############################################################################
 
-print_phase "5: Deployment Verification"
+print_phase "5: Pre-create Appauto Virtual Environments"
+
+print_info "Pre-creating virtual environments for common appauto branches..."
+print_info "This ensures venvs are ready for testing and validates the setup"
+
+# Common branches to pre-create
+COMMON_BRANCHES=("main" "v3.3.1")
+
+for BRANCH in "${COMMON_BRANCHES[@]}"; do
+    print_info "Creating venv for appauto branch: $BRANCH"
+
+    # Run Python script to create venv using the venv_manager
+    sudo -u "$DEPLOY_USER" bash -c "cd $INSTALL_DIR/llm-perf-platform && source .venv/bin/activate && python3 -c \"
+from llm_perf_platform.services.venv_manager import get_venv_manager
+import sys
+
+venv_manager = get_venv_manager()
+print(f'Creating venv for branch: $BRANCH')
+appauto_bin = venv_manager.ensure_venv('$BRANCH')
+
+if appauto_bin:
+    print(f'✓ Successfully created venv for $BRANCH at {appauto_bin}')
+    sys.exit(0)
+else:
+    print(f'✗ Failed to create venv for $BRANCH')
+    sys.exit(1)
+\""
+
+    if [ $? -eq 0 ]; then
+        print_status "Venv for $BRANCH created successfully"
+    else
+        print_warning "Failed to create venv for $BRANCH (will be created on first use)"
+    fi
+done
+
+print_status "Venv pre-creation completed"
+
+###############################################################################
+# Phase 6: Deployment Verification
+###############################################################################
+
+print_phase "6: Deployment Verification"
 
 VERIFICATION_PASSED=true
 
