@@ -81,54 +81,59 @@ class VenvManager:
 
             # Clone appauto source to venv directory (for isolation)
             appauto_clone = venv_path / "appauto"
-            logger.info(f"Cloning appauto from {self.appauto_source}")
+
+            # Try to clone the specific branch directly
+            logger.info(f"Cloning appauto branch '{branch}' from {self.appauto_source}")
             result = subprocess.run(
-                ["git", "clone", str(self.appauto_source), str(appauto_clone)],
+                ["git", "clone", "--branch", branch, str(self.appauto_source), str(appauto_clone)],
                 cwd=venv_path,
                 capture_output=True,
                 text=True,
                 timeout=300,
             )
-            if result.returncode != 0:
-                logger.error(f"Failed to clone appauto: {result.stderr}")
-                return False
 
-            # Fetch all branches from origin
-            logger.info(f"Fetching all branches from origin")
-            result = subprocess.run(
-                ["git", "fetch", "origin"],
-                cwd=appauto_clone,
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
+            # If clone with --branch fails, the source repo may not have a local tracking branch
+            # In this case, create it first and retry
             if result.returncode != 0:
-                logger.error(f"Failed to fetch branches: {result.stderr}")
-                return False
+                logger.info(f"Direct clone failed, creating local tracking branch in source repo")
 
-            # Checkout the specified branch
-            logger.info(f"Checking out branch '{branch}'")
-            # Try local branch first, if fails, checkout from remote
-            result = subprocess.run(
-                ["git", "checkout", branch],
-                cwd=appauto_clone,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if result.returncode != 0:
-                # If local checkout fails, try creating from remote
-                logger.info(f"Local branch not found, trying remote branch origin/{branch}")
-                result = subprocess.run(
-                    ["git", "checkout", "-b", branch, f"origin/{branch}"],
-                    cwd=appauto_clone,
+                # Ensure the branch exists as a local tracking branch in source repo
+                checkout_result = subprocess.run(
+                    ["git", "checkout", branch],
+                    cwd=self.appauto_source,
                     capture_output=True,
                     text=True,
                     timeout=60,
                 )
-                if result.returncode != 0:
-                    logger.error(f"Failed to checkout branch '{branch}': {result.stderr}")
+
+                if checkout_result.returncode != 0:
+                    logger.error(f"Failed to checkout branch '{branch}' in source repo: {checkout_result.stderr}")
                     return False
+
+                # Switch back to main to avoid issues
+                subprocess.run(
+                    ["git", "checkout", "main"],
+                    cwd=self.appauto_source,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+
+                # Retry clone with --branch
+                logger.info(f"Retrying clone with branch '{branch}'")
+                result = subprocess.run(
+                    ["git", "clone", "--branch", branch, str(self.appauto_source), str(appauto_clone)],
+                    cwd=venv_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+
+                if result.returncode != 0:
+                    logger.error(f"Failed to clone appauto with branch '{branch}': {result.stderr}")
+                    return False
+
+            logger.info(f"Successfully cloned appauto on branch '{branch}'")
 
             # Create virtual environment
             logger.info(f"Creating Python virtual environment")
