@@ -218,15 +218,57 @@ if ! apt-cache policy python3.11 | grep -q "Candidate:.*3.11"; then
     apt-get update -qq
 fi
 
-# Install dependencies
-print_info "Installing: Python 3.11, Node.js, Nginx, build tools..."
+# Check Node.js version first
+CURRENT_NODE_VERSION=""
+if command -v node &> /dev/null; then
+    CURRENT_NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+fi
+
+# Upgrade Node.js before installing other dependencies if needed
+if [ -z "$CURRENT_NODE_VERSION" ] || [ "$CURRENT_NODE_VERSION" -lt 18 ]; then
+    if [ -n "$CURRENT_NODE_VERSION" ]; then
+        print_warning "Current Node.js version: v$CURRENT_NODE_VERSION (< 18)"
+    else
+        print_warning "Node.js not installed"
+    fi
+
+    print_status "Installing Node.js 20.x from NodeSource..."
+
+    # Remove old nodejs and npm packages to avoid conflicts
+    print_info "Removing old Node.js packages..."
+    apt-get remove -y nodejs npm 2>/dev/null || true
+    apt-get autoremove -y 2>/dev/null || true
+
+    # Download and run NodeSource setup script
+    if ! curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; then
+        print_error "Failed to setup NodeSource repository"
+        print_info "Please run manually:"
+        echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
+        echo "  sudo apt-get install -y nodejs"
+        exit 1
+    fi
+
+    # Install Node.js (includes npm)
+    print_info "Installing Node.js 20.x..."
+    if ! apt-get install -y nodejs; then
+        print_error "Failed to install Node.js"
+        print_info "Please run manually: sudo apt-get install -y nodejs"
+        exit 1
+    fi
+
+    # Verify installation
+    NEW_NODE_VERSION=$(node --version)
+    NEW_NPM_VERSION=$(npm --version)
+    print_status "Node.js installed successfully: $NEW_NODE_VERSION (npm $NEW_NPM_VERSION)"
+fi
+
+# Install other dependencies (without nodejs/npm since they're already installed)
+print_info "Installing: Python 3.11, Nginx, build tools..."
 if ! apt-get install -y \
     python3.11 \
     python3.11-venv \
     python3.11-dev \
     python3-pip \
-    nodejs \
-    npm \
     nginx \
     sqlite3 \
     git \
@@ -238,33 +280,6 @@ if ! apt-get install -y \
 fi
 
 print_status "System dependencies installed successfully"
-
-# Upgrade Node.js to latest LTS if needed
-NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    print_status "Upgrading Node.js to LTS version..."
-    print_info "Current version: $(node --version), upgrading to v20.x..."
-
-    # Download and run NodeSource setup script
-    if ! curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; then
-        print_error "Failed to setup NodeSource repository"
-        print_info "Please run manually:"
-        echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
-        echo "  sudo apt-get install -y nodejs"
-        exit 1
-    fi
-
-    # Install Node.js
-    if ! apt-get install -y nodejs; then
-        print_error "Failed to install Node.js"
-        print_info "Please run manually: sudo apt-get install -y nodejs"
-        exit 1
-    fi
-
-    # Verify installation
-    NEW_NODE_VERSION=$(node --version)
-    print_status "Node.js upgraded successfully to $NEW_NODE_VERSION"
-fi
 
 # Install pnpm globally
 print_status "Installing pnpm package manager..."

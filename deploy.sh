@@ -81,31 +81,26 @@ if ! apt-cache policy python3.11 | grep -q "Candidate:.*3.11"; then
     sudo apt-get update
 fi
 
-# Install system dependencies
-print_status "Installing system dependencies..."
-if ! sudo apt-get install -y \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
-    python3-pip \
-    nodejs \
-    npm \
-    nginx \
-    sqlite3 \
-    git \
-    curl \
-    build-essential; then
-    print_error "Failed to install system dependencies"
-    exit 1
+# Check Node.js version first
+CURRENT_NODE_VERSION=""
+if command -v node &> /dev/null; then
+    CURRENT_NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
 fi
 
-print_status "System dependencies installed successfully"
+# Upgrade Node.js before installing other dependencies if needed
+if [ -z "$CURRENT_NODE_VERSION" ] || [ "$CURRENT_NODE_VERSION" -lt 18 ]; then
+    if [ -n "$CURRENT_NODE_VERSION" ]; then
+        print_warning "Current Node.js version: v$CURRENT_NODE_VERSION (< 18)"
+    else
+        print_warning "Node.js not installed"
+    fi
 
-# Upgrade Node.js to latest LTS if needed
-NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    print_status "Upgrading Node.js to LTS version..."
-    print_warning "Current version: $(node --version), upgrading to v20.x..."
+    print_status "Installing Node.js 20.x from NodeSource..."
+
+    # Remove old nodejs and npm packages to avoid conflicts
+    print_warning "Removing old Node.js packages..."
+    sudo apt-get remove -y nodejs npm 2>/dev/null || true
+    sudo apt-get autoremove -y 2>/dev/null || true
 
     if ! curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -; then
         print_error "Failed to setup NodeSource repository"
@@ -120,8 +115,26 @@ if [ "$NODE_VERSION" -lt 18 ]; then
         exit 1
     fi
 
-    print_status "Node.js upgraded successfully to $(node --version)"
+    print_status "Node.js installed successfully: $(node --version) (npm $(npm --version))"
 fi
+
+# Install other system dependencies (without nodejs/npm since they're already installed)
+print_status "Installing system dependencies..."
+if ! sudo apt-get install -y \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
+    python3-pip \
+    nginx \
+    sqlite3 \
+    git \
+    curl \
+    build-essential; then
+    print_error "Failed to install system dependencies"
+    exit 1
+fi
+
+print_status "System dependencies installed successfully"
 
 # Install pnpm globally
 print_status "Installing pnpm package manager..."
