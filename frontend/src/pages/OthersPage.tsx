@@ -1,6 +1,6 @@
 import React from "react";
 import { CollapsiblePanel, TaskTable, Pagination } from "../components";
-import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
+import { TaskTableColumn, TaskTableAction, commonColumns, actionConditions, confirmMessages, batchConfirmMessages } from "../components/TaskTable";
 import { collectHardwareInfo, deleteTask, downloadUrl, fetchTaskLogs } from "../api";
 import { TaskSummary, Profile } from "../types";
 import { UsePaginationReturn } from "../hooks/usePagination";
@@ -243,12 +243,28 @@ export const OthersPage: React.FC<OthersPageProps> = ({
           tasks={othersTasks}
           profile={profile}
           columns={[
-            { key: "id", label: "ID", render: columnRenderers.id },
-            { key: "status", label: "状态", render: columnRenderers.status },
-            { key: "taskType", label: "任务类型", render: columnRenderers.taskType },
-            { key: "creator", label: "创建者", render: columnRenderers.creator },
-            { key: "createdAt", label: "创建时间", render: columnRenderers.createdAt },
-            { key: "completedAt", label: "完成时间", render: columnRenderers.completedAt },
+            commonColumns.id,
+            commonColumns.status,
+            commonColumns.taskType,
+            commonColumns.creator,
+            commonColumns.createdAt,
+            commonColumns.completedAt,
+          ]}
+          defaultSortColumn="createdAt"
+          defaultSortDirection="desc"
+          enableSelection={true}
+          selectionFilter={actionConditions.isOwner}
+          batchActions={[
+            {
+              label: "批量删除",
+              icon: "🗑️",
+              color: "#dc3545",
+              onClick: async (selectedTasks) => {
+                await Promise.all(selectedTasks.map(task => deleteTask(task.id)));
+                await loadOthersTasks();
+              },
+              confirmMessage: batchConfirmMessages.batchDelete,
+            },
           ]}
           actions={[
             {

@@ -1,6 +1,6 @@
 import React from "react";
 import { CollapsiblePanel, TaskTable } from "../components";
-import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
+import { TaskTableColumn, TaskTableAction, commonColumns, actionConditions, confirmMessages, batchConfirmMessages } from "../components/TaskTable";
 import { TestRunForm, TaskSummary, Profile } from "../types";
 import { API_BASE, getAuthToken } from "../api";
 
@@ -581,10 +581,26 @@ export const DeploymentPage: React.FC<DeploymentPageProps> = ({
           tasks={deployTasks}
           profile={profile}
           columns={[
-            { key: "id", label: "ID", render: columnRenderers.id },
-            { key: "type", label: "类型", render: columnRenderers.model },
-            { key: "status", label: "状态", render: columnRenderers.status },
-            { key: "createdAt", label: "创建时间", render: (task) => new Date(task.created_at).toLocaleString("zh-CN") },
+            commonColumns.id,
+            { ...commonColumns.model, label: "类型" },
+            commonColumns.status,
+            { ...commonColumns.createdAt, render: (task) => new Date(task.created_at).toLocaleString("zh-CN") },
+          ]}
+          defaultSortColumn="createdAt"
+          defaultSortDirection="desc"
+          enableSelection={true}
+          selectionFilter={actionConditions.isOwner}
+          batchActions={[
+            {
+              label: "批量删除",
+              icon: "🗑️",
+              color: "#dc3545",
+              onClick: async (selectedTasks) => {
+                await Promise.all(selectedTasks.map(task => deleteTask(task.id)));
+                await loadDeployTasks();
+              },
+              confirmMessage: batchConfirmMessages.batchDelete,
+            },
           ]}
           actions={[
             {

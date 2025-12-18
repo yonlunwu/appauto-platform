@@ -1,6 +1,6 @@
 import React from "react";
 import { CollapsiblePanel, TaskTable, Pagination } from "../components";
-import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
+import { TaskTableColumn, TaskTableAction, commonColumns, actionConditions, confirmMessages, batchConfirmMessages } from "../components/TaskTable";
 import { downloadUrl, runPerfTest, scanModels } from "../api";
 import { ModelInfo, Profile, TaskSummary, TestRunForm } from "../types";
 
@@ -1480,13 +1480,29 @@ export function PerformanceTestPage({
           tasks={tasks.filter(t => t.engine === "evalscope" && !t.parameters?.dataset)}
           profile={profile}
           columns={[
-            { key: "id", label: "ID", render: columnRenderers.id },
-            { key: "uuid", label: "UUID", render: columnRenderers.uuid },
-            { key: "engine", label: "引擎", render: columnRenderers.engine },
-            { key: "model", label: "模型", render: columnRenderers.model },
-            { key: "status", label: "状态", render: columnRenderers.status },
-            { key: "creator", label: "创建者", render: columnRenderers.creator },
-            { key: "createdAt", label: "创建时间", render: columnRenderers.createdAt },
+            commonColumns.id,
+            commonColumns.uuid,
+            commonColumns.engine,
+            commonColumns.model,
+            commonColumns.status,
+            commonColumns.creator,
+            commonColumns.createdAt,
+          ]}
+          defaultSortColumn="createdAt"
+          defaultSortDirection="desc"
+          enableSelection={true}
+          selectionFilter={actionConditions.isOwner}
+          batchActions={[
+            {
+              label: "批量删除",
+              icon: "🗑️",
+              color: "#dc3545",
+              onClick: async (selectedTasks) => {
+                await Promise.all(selectedTasks.map(task => handleDelete(task.id)));
+                await loadTasks();
+              },
+              confirmMessage: batchConfirmMessages.batchDelete,
+            },
           ]}
           actions={[
             {

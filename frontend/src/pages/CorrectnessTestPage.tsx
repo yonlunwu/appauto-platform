@@ -1,6 +1,6 @@
 import React from "react";
 import { CollapsiblePanel, TaskTable } from "../components";
-import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
+import { TaskTableColumn, TaskTableAction, commonColumns, actionConditions, confirmMessages, batchConfirmMessages } from "../components/TaskTable";
 import { TestRunForm, TaskSummary, Profile, ModelInfo } from "../types";
 import { runEvalTest } from "../api";
 
@@ -961,14 +961,30 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
           tasks={tasks.filter(t => t.engine === "evalscope" && t.parameters?.dataset)}
           profile={profile}
           columns={[
-            { key: "id", label: "ID", render: columnRenderers.id },
-            { key: "uuid", label: "UUID", render: columnRenderers.uuid },
-            { key: "dataset", label: "数据集", render: columnRenderers.dataset },
-            { key: "model", label: "模型", render: columnRenderers.model },
-            { key: "status", label: "状态", render: columnRenderers.status },
-            { key: "score", label: "得分", render: columnRenderers.score, headerStyle: { minWidth: "80px" } },
-            { key: "creator", label: "创建者", render: columnRenderers.creator },
-            { key: "createdAt", label: "创建时间", render: columnRenderers.createdAt },
+            commonColumns.id,
+            commonColumns.uuid,
+            commonColumns.dataset,
+            commonColumns.model,
+            commonColumns.status,
+            commonColumns.score,
+            commonColumns.creator,
+            commonColumns.createdAt,
+          ]}
+          defaultSortColumn="createdAt"
+          defaultSortDirection="desc"
+          enableSelection={true}
+          selectionFilter={actionConditions.isOwner}
+          batchActions={[
+            {
+              label: "批量删除",
+              icon: "🗑️",
+              color: "#dc3545",
+              onClick: async (selectedTasks) => {
+                await Promise.all(selectedTasks.map(task => handleDelete(task.id)));
+                await loadTasks();
+              },
+              confirmMessage: batchConfirmMessages.batchDelete,
+            },
           ]}
           actions={[
             {
