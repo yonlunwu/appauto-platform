@@ -27,6 +27,20 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   onDelete,
   emptyMessage = "暂无任务",
 }) => {
+  const handleDeleteClick = (task: TaskSummary) => {
+    const taskIdentifier = task.display_id || task.id;
+    const confirmMessage = `确定要删除任务 #${taskIdentifier} 吗？\n\n` +
+      `引擎: ${task.engine}\n` +
+      `模型: ${task.model}\n` +
+      `状态: ${task.status}\n` +
+      `UUID: ${task.uuid.substring(0, 8)}...\n\n` +
+      `此操作不可撤销！`;
+
+    if (window.confirm(confirmMessage)) {
+      onDelete(task.id);
+    }
+  };
+
   if (tasks.length === 0) {
     return (
       <p style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
@@ -139,7 +153,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
                 {(!task.user_id || task.user_id === profile?.user_id) && (
                   <button
                     className="secondary"
-                    onClick={() => onDelete(task.id)}
+                    onClick={() => handleDeleteClick(task)}
                     style={{ color: "#dc3545" }}
                   >
                     删除
