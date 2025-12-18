@@ -654,6 +654,10 @@ class CommandExecutor(BaseExecutor):
         # 查找类似 "score: 1.0" 或 "eval finished. score: 1.0" 的行
         score_pattern = r'score:\s*([0-9.]+)'
 
+        # 解析 pytest 的 allure 报告链接
+        # 查找类似 "test_report: http://192.168.108.16:8000/reports/allure-results/..." 的行
+        allure_report_pattern = r'test_report:\s*(https?://[^\s]+)'
+
         for line in stdout.split("\n"):
             xlsx_match = re.search(xlsx_pattern, line)
             if xlsx_match:
@@ -671,6 +675,13 @@ class CommandExecutor(BaseExecutor):
                 score_value = float(score_match.group(1))
                 summary["score"] = score_value
                 self.log_info(f"Found evaluation score: {score_value}")
+
+            # 提取 allure 报告链接
+            allure_match = re.search(allure_report_pattern, line)
+            if allure_match and "allure_report" not in summary:
+                allure_url = allure_match.group(1)
+                summary["allure_report"] = allure_url
+                self.log_info(f"Found allure report URL: {allure_url}")
 
         # 如果没有找到 JSON，提取一些基本信息
         if not summary:

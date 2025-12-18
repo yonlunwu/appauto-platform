@@ -491,6 +491,34 @@ export const commonColumns = {
     sortType: "number" as SortType,
     headerStyle: { minWidth: "80px" },
   },
+  allureReport: {
+    key: "allureReport",
+    label: "报告",
+    render: (task: TaskSummary) => {
+      const allureUrl = task.summary?.allure_report as string | undefined;
+      if (allureUrl) {
+        return (
+          <a
+            href={allureUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: "#007bff",
+              textDecoration: "none",
+              fontWeight: "500",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.textDecoration = "underline")}
+            onMouseOut={(e) => (e.currentTarget.style.textDecoration = "none")}
+          >
+            查看报告
+          </a>
+        );
+      }
+      return <span style={{ color: "#999" }}>-</span>;
+    },
+    sortable: false,
+    headerStyle: { minWidth: "100px" },
+  },
 };
 
 // ==================== 通用列渲染函数（向后兼容）====================

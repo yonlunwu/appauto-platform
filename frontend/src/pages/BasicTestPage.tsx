@@ -464,6 +464,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
             commonColumns.engine,
             commonColumns.model,
             commonColumns.status,
+            commonColumns.allureReport,
             commonColumns.creator,
             commonColumns.createdAt,
           ]}
