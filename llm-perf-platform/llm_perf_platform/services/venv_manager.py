@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 VENV_BASE_DIR = Path(os.getenv("LLM_PERF_VENV_DIR", str(Path.home() / ".local/share/llm-perf/venvs")))
 
 # Default appauto source path (can be overridden by environment variable)
-APPAUTO_SOURCE_PATH = Path(os.getenv("APPAUTO_SOURCE_PATH", str(Path.home() / "work/approaching/code/appauto")))
+# Use APPAUTO_PATH to match the systemd service configuration
+APPAUTO_SOURCE_PATH = Path(os.getenv("APPAUTO_PATH", str(Path.home() / "work/approaching/code/appauto")))
 
 
 class VenvManager:

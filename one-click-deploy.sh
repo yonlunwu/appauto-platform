@@ -729,7 +729,8 @@ for BRANCH in "${COMMON_BRANCHES[@]}"; do
     print_info "Creating venv for appauto branch: $BRANCH"
 
     # Run Python script to create venv using the venv_manager
-    sudo -u "$DEPLOY_USER" bash -c "cd $INSTALL_DIR/llm-perf-platform && source .venv/bin/activate && python3 -c \"
+    # Pass APPAUTO_PATH environment variable to ensure venv_manager uses correct path
+    sudo -u "$DEPLOY_USER" bash -c "export APPAUTO_PATH='$APPAUTO_ABS_PATH' && cd $INSTALL_DIR/llm-perf-platform && source .venv/bin/activate && python3 -c \"
 from llm_perf_platform.services.venv_manager import get_venv_manager
 import sys
 
