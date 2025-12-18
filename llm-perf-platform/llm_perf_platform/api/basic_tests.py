@@ -45,6 +45,7 @@ def run_basic_test(request: BasicTestRequest, current_user: UserAccount = Depend
         ssh_config=ssh_config_dict,
         user_id=current_user.id,
         appauto_branch=request.appauto_branch if hasattr(request, 'appauto_branch') else "main",
+        task_type=TaskType.PYTEST.value,
     )
 
     # 构建执行payload
