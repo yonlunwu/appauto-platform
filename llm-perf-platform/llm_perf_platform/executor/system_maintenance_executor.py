@@ -200,21 +200,22 @@ class SystemMaintenanceExecutor(BaseExecutor):
         self.log_info("步骤 5/5: 安装 appauto 依赖")
         pip_path = venv_path / "bin" / "pip"
 
-        # 先安装 uv（加速依赖安装）
+        # 先安装 uv（加速依赖安装），使用较长超时时间（10分钟）
         success, stdout, stderr = await self._run_command(
-            [str(pip_path), "install", "uv"]
+            [str(pip_path), "install", "uv"],
+            timeout=600
         )
         if not success:
             self.log_error(f"安装 uv 失败: {stderr}")
 
-        # 使用 uv 安装 appauto
+        # 使用 uv 安装 appauto，使用更长超时时间（20分钟）
         uv_path = venv_path / "bin" / "uv"
         if uv_path.exists():
             install_cmd = [str(uv_path), "pip", "install", "-e", str(self.appauto_path)]
         else:
             install_cmd = [str(pip_path), "install", "-e", str(self.appauto_path)]
 
-        success, stdout, stderr = await self._run_command(install_cmd)
+        success, stdout, stderr = await self._run_command(install_cmd, timeout=1200)
         summary["steps"].append({
             "step": "install_appauto",
             "success": success,
