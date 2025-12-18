@@ -63,6 +63,9 @@ def run_basic_test(request: BasicTestRequest, current_user: UserAccount = Depend
         "report_url": request.report_url,
         "pytest_args": request.pytest_args,
         "appauto_branch": request.appauto_branch if hasattr(request, 'appauto_branch') else "main",
+        "ft_port": request.ft_port if hasattr(request, 'ft_port') else None,
+        "need_empty_gpu_count": request.need_empty_gpu_count if hasattr(request, 'need_empty_gpu_count') else None,
+        "tp": request.tp if hasattr(request, 'tp') else None,
     }
 
     # 提交任务

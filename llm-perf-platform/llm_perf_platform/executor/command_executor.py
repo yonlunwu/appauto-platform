@@ -335,6 +335,11 @@ class CommandExecutor(BaseExecutor):
         if ssh_config and ssh_config.get("host"):
             cmd_parts.extend(["--ip", ssh_config["host"]])
 
+        # 添加 FT 端口（FT场景特有）
+        if scenario == "ft":
+            ft_port = payload.get("ft_port", 35000)
+            cmd_parts.extend(["--ft_port", str(ft_port)])
+
         # 添加测试级别
         case_level = payload.get("case_level")
         if case_level:
@@ -351,6 +356,16 @@ class CommandExecutor(BaseExecutor):
                 cmd_parts.extend(["--ssh_user", ssh_config["user"]])
             if ssh_config.get("port"):
                 cmd_parts.extend(["--ssh_port", str(ssh_config["port"])])
+
+        # 添加 GPU 配置（可选）
+        need_empty_gpu_count = payload.get("need_empty_gpu_count")
+        if need_empty_gpu_count is not None:
+            cmd_parts.extend(["--need_empty_gpu_count", str(need_empty_gpu_count)])
+
+        # 添加 TP 配置（可选）
+        tp = payload.get("tp")
+        if tp:
+            cmd_parts.extend(["--tp", str(tp)])
 
         # 添加通知组（可选）
         notify_group = payload.get("notify_group")

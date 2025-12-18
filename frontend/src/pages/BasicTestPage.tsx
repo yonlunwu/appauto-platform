@@ -237,7 +237,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                   type="text"
                   value={form.case_level || ""}
                   onChange={(e) => updateForm("case_level", e.target.value)}
-                  placeholder="例如: amaas_ci_sanity_check"
+                  placeholder={`例如: ${form.scenario}_ci_sanity_check`}
                 />
               </label>
 
@@ -247,8 +247,42 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                   type="text"
                   value={form.model_priority || ""}
                   onChange={(e) => updateForm("model_priority", e.target.value)}
-                  placeholder="例如: DeepSeek-V3,Qwen2.5-72B"
+                  placeholder='例如: ["P0", "P1", "P2"]'
                 />
+                <small style={{ color: "#666" }}>JSON数组格式</small>
+              </label>
+
+              {form.scenario === "ft" && (
+                <label>
+                  FT 端口
+                  <input
+                    type="number"
+                    value={form.ft_port === undefined ? "" : form.ft_port}
+                    onChange={(e) => updateForm("ft_port", e.target.value === "" ? undefined : parseInt(e.target.value))}
+                    placeholder="默认: 35000"
+                  />
+                </label>
+              )}
+
+              <label>
+                需要空闲GPU数
+                <input
+                  type="number"
+                  value={form.need_empty_gpu_count === undefined ? "" : form.need_empty_gpu_count}
+                  onChange={(e) => updateForm("need_empty_gpu_count", e.target.value === "" ? undefined : parseInt(e.target.value))}
+                  placeholder="例如: 0"
+                />
+              </label>
+
+              <label>
+                TP 配置
+                <input
+                  type="text"
+                  value={form.tp || ""}
+                  onChange={(e) => updateForm("tp", e.target.value)}
+                  placeholder='例如: [1, 2, 4, 8]'
+                />
+                <small style={{ color: "#666" }}>JSON数组格式</small>
               </label>
             </div>
 
@@ -363,9 +397,13 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                     const payload = {
                       scenario: form.scenario,
                       ssh_config,
+                      appauto_branch: form.appauto_branch || "main",
                       testpaths: form.testpaths || undefined,
                       case_level: form.case_level || undefined,
                       model_priority: form.model_priority || undefined,
+                      ft_port: form.ft_port || undefined,
+                      need_empty_gpu_count: form.need_empty_gpu_count !== undefined ? form.need_empty_gpu_count : undefined,
+                      tp: form.tp || undefined,
                       lark_user: form.lark_user || undefined,
                       topic: form.topic || undefined,
                       notify_group: form.notify_group || undefined,

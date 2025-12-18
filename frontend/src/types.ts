@@ -61,6 +61,9 @@ export interface TestRunForm {
   testpaths?: string;
   case_level?: string;
   model_priority?: string;
+  ft_port?: number;
+  need_empty_gpu_count?: number;
+  tp?: string;
   lark_user?: string;
   topic?: string;
   notify_group?: string;

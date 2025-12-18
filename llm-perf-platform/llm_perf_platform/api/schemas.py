@@ -320,11 +320,15 @@ class BasicTestRequest(BaseModel):
     """基础测试请求"""
     scenario: Literal["amaas", "ft"] = "amaas"  # 测试场景
     ssh_config: SSHConfig  # SSH 配置
+    appauto_branch: str = "main"  # Appauto 分支
 
     # 测试配置
     testpaths: Optional[str] = None  # 测试路径，默认根据 scenario 自动选择
     case_level: Optional[str] = None  # 测试级别
     model_priority: Optional[str] = None  # 模型优先级
+    ft_port: Optional[int] = None  # FT 端口（FT 场景使用，默认35000）
+    need_empty_gpu_count: Optional[int] = None  # 需要的空闲GPU数
+    tp: Optional[str] = None  # TP 配置，例如 "[1, 2, 4, 8]"
 
     # 通知配置（可选）
     lark_user: Optional[str] = None  # 飞书用户
