@@ -57,7 +57,13 @@ def get_appauto_versions(current_user: UserAccount = Depends(get_admin_user)):
 
     扫描 ~/.local/share/llm-perf/venvs/ 目录，返回所有已安装的 appauto 版本
     """
-    appauto_path = Path(os.getenv("APPAUTO_PATH", "/Users/ryanyang/work/approaching/code/appauto"))
+    appauto_path_str = os.getenv("APPAUTO_PATH")
+    if not appauto_path_str:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="APPAUTO_PATH environment variable is not set. Please configure it in the deployment."
+        )
+    appauto_path = Path(appauto_path_str)
     venv_base_path = Path.home() / ".local/share/llm-perf/venvs"
 
     versions = []

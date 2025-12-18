@@ -21,8 +21,11 @@ class SystemMaintenanceExecutor(BaseExecutor):
 
     def __init__(self, task_id: int):
         super().__init__(task_id)
-        # appauto 代码路径（从环境变量或配置读取）
-        self.appauto_path = Path(os.getenv("APPAUTO_PATH", "/Users/ryanyang/work/approaching/code/appauto"))
+        # appauto 代码路径（从环境变量读取）
+        appauto_path_str = os.getenv("APPAUTO_PATH")
+        if not appauto_path_str:
+            raise RuntimeError("APPAUTO_PATH environment variable is not set. Please configure it in the systemd service file.")
+        self.appauto_path = Path(appauto_path_str)
         # venv 基础路径
         self.venv_base_path = Path.home() / ".local/share/llm-perf/venvs"
 
