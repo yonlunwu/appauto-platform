@@ -383,10 +383,12 @@ class CommandExecutor(BaseExecutor):
             cmd_parts.extend(["--report-url", report_url])
 
         # 添加额外的 pytest 参数
-        pytest_args = payload.get("pytest_args", [])
-        if isinstance(pytest_args, str):
-            pytest_args = shlex.split(pytest_args)
-        cmd_parts.extend(pytest_args)
+        pytest_args = payload.get("pytest_args")
+        if pytest_args:
+            if isinstance(pytest_args, str):
+                pytest_args = shlex.split(pytest_args)
+            if isinstance(pytest_args, list):
+                cmd_parts.extend(pytest_args)
 
         return await self._run_command(cmd_parts)
 
