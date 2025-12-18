@@ -511,6 +511,46 @@ class CommandExecutor(BaseExecutor):
             summary = self._parse_output(stdout_str, stderr_str)
             summary["exit_code"] = exit_code
 
+            # 检查常见错误模式（即使exit code为0）
+            error_patterns = [
+                ("Connection refused", "Connection to model server refused"),
+                ("Connection error", "Connection to model server failed"),
+                ("ConnectError", "Network connection error"),
+                ("TimeoutError", "Request timeout"),
+                ("eval finished. score:\n", "Evaluation completed but no score obtained"),
+                ("eval finished. score: \n", "Evaluation completed but no score obtained"),
+            ]
+
+            combined_output = stdout_str + "\n" + stderr_str
+            for pattern, error_desc in error_patterns:
+                if pattern in combined_output:
+                    success = False
+                    error_msg = f"{error_desc} (detected pattern: {pattern})"
+                    self.log_error(error_msg)
+                    return ExecutionResult(
+                        success=False,
+                        summary=summary,
+                        error=error_msg,
+                        stdout=stdout_str,
+                        stderr=stderr_str,
+                        exit_code=exit_code,
+                    )
+
+            # 对于评测任务，需要额外验证 score 是否有效
+            if success and self.command_type == TaskType.EVAL_TEST:
+                if "score" not in summary or summary["score"] is None:
+                    success = False
+                    error_msg = "Evaluation task completed but no valid score was obtained"
+                    self.log_error(error_msg)
+                    return ExecutionResult(
+                        success=False,
+                        summary=summary,
+                        error=error_msg,
+                        stdout=stdout_str,
+                        stderr=stderr_str,
+                        exit_code=exit_code,
+                    )
+
             if not success:
                 error_msg = stderr_str or f"Command failed with exit code {exit_code}"
                 self.log_error(f"Command failed: {error_msg}")
