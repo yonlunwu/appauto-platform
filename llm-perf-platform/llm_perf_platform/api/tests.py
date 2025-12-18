@@ -35,6 +35,7 @@ from llm_perf_platform.api.schemas import (
     TestEvalViaFTWithLaunch,
     TestEvalResponse,
 )
+from llm_perf_platform.executor.base_executor import TaskType
 from llm_perf_platform.executor.logger import LOG_DIR
 from llm_perf_platform.models.db import get_session
 from llm_perf_platform.models.user_account import UserAccount
@@ -326,9 +327,15 @@ def retry_task(task_id: int, current_user = Depends(get_current_user)):
 
     # 自动检测并添加缺失的 task_type 字段（向后兼容）
     if "task_type" not in parameters:
-        # 通过特征字段判断任务类型
+        # 通过 engine 字段判断任务类型
+        if original_task.engine == "pytest":
+            parameters["task_type"] = TaskType.PYTEST.value
+        elif original_task.engine == "evalscope":
+            parameters["task_type"] = TaskType.EVAL_TEST.value
+        elif original_task.engine == "appauto":
+            parameters["task_type"] = TaskType.ENV_DEPLOY.value
         # 如果有 base/skip_launch/parallel/number 字段，说明是命令行方式的 perf test
-        if "base" in parameters and "parallel" in parameters and "number" in parameters:
+        elif "base" in parameters and "parallel" in parameters and "number" in parameters:
             parameters["task_type"] = "perf_test_cmd"
 
             # 命令行方式需要顶层的 SSH 字段，如果缺失则从 ssh_config 中提取
