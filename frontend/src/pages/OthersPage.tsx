@@ -1,5 +1,6 @@
 import React from "react";
-import { CollapsiblePanel, Pagination } from "../components";
+import { CollapsiblePanel, TaskTable, Pagination } from "../components";
+import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
 import { collectHardwareInfo, deleteTask, downloadUrl, fetchTaskLogs } from "../api";
 import { TaskSummary, Profile } from "../types";
 import { UsePaginationReturn } from "../hooks/usePagination";
@@ -238,125 +239,67 @@ export const OthersPage: React.FC<OthersPageProps> = ({
       {/* 其他任务列表 */}
       <section className="panel" style={{ marginTop: "1rem" }}>
         <h2>其他任务列表</h2>
-        <div style={{ overflowX: "auto" }}>
-          <table className="tasks-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>状态</th>
-                <th>任务类型</th>
-                <th>创建者</th>
-                <th>创建时间</th>
-                <th>完成时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {othersTasks.map((task) => (
-                <tr key={task.id}>
-                  <td>{task.display_id || task.id}</td>
-                  <td>
-                    <span
-                      className={`status-badge status-${task.status.toLowerCase()}`}
-                    >
-                      {task.status}
-                    </span>
-                  </td>
-                  <td>{task.parameters?.task_type || "hardware_info"}</td>
-                  <td>
-                    {task.user_email ? (
-                      <span style={{
-                        color: task.user_id === profile?.user_id ? "#28a745" : "#666",
-                        fontWeight: task.user_id === profile?.user_id ? "600" : "normal"
-                      }}>
-                        {task.user_email}
-                      </span>
-                    ) : (
-                      <span style={{ color: "#999" }}>未知</span>
-                    )}
-                  </td>
-                  <td>{new Date(task.created_at).toLocaleString()}</td>
-                  <td>
-                    {task.completed_at
-                      ? new Date(task.completed_at).toLocaleString()
-                      : "-"}
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      {task.result_path && (
-                        <button
-                          className="secondary"
-                          onClick={() =>
-                            window.open(downloadUrl(task.id), "_blank")
-                          }
-                        >
-                          下载
-                        </button>
-                      )}
-                      {task.result_path && (
-                        <button
-                          className="secondary"
-                          onClick={() => handlePreview(task.id)}
-                          style={{ color: "#17a2b8" }}
-                        >
-                          预览
-                        </button>
-                      )}
-                      <button
-                        className="secondary"
-                        onClick={async () => {
-                          setLogsTaskId(task.id);
-                          logsTaskIdRef.current = task.id;
-                          logsModal.open();
-                          try {
-                            const response = await fetchTaskLogs(task.id);
-                            if (logsTaskIdRef.current === task.id) {
-                              setCurrentLogs(response.logs || "No logs available");
-                            }
-                          } catch (err) {
-                            if (logsTaskIdRef.current === task.id) {
-                              setCurrentLogs(
-                                err instanceof Error ? err.message : "Failed to fetch logs"
-                              );
-                            }
-                          }
-                        }}
-                        style={{ color: "#007bff" }}
-                      >
-                        日志
-                      </button>
-                      {/* Only show delete button if task belongs to current user */}
-                      {(!task.user_id || task.user_id === profile?.user_id) && (
-                        <button
-                          className="secondary"
-                          onClick={async () => {
-                            if (
-                              confirm(`确定要删除任务 ${task.display_id || task.id} 吗？`)
-                            ) {
-                              try {
-                                await deleteTask(task.id);
-                                await loadOthersTasks();
-                              } catch (err) {
-                                alert(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "删除失败"
-                                );
-                              }
-                            }
-                          }}
-                          style={{ color: "#dc3545" }}
-                        >
-                          删除
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TaskTable
+          tasks={othersTasks}
+          profile={profile}
+          columns={[
+            { key: "id", label: "ID", render: columnRenderers.id },
+            { key: "status", label: "状态", render: columnRenderers.status },
+            { key: "taskType", label: "任务类型", render: columnRenderers.taskType },
+            { key: "creator", label: "创建者", render: columnRenderers.creator },
+            { key: "createdAt", label: "创建时间", render: columnRenderers.createdAt },
+            { key: "completedAt", label: "完成时间", render: columnRenderers.completedAt },
+          ]}
+          actions={[
+            {
+              label: "下载",
+              onClick: (task) => window.open(downloadUrl(task.id), "_blank"),
+              condition: actionConditions.hasResult,
+            },
+            {
+              label: "预览",
+              onClick: (task) => handlePreview(task.id),
+              color: "#17a2b8",
+              condition: actionConditions.hasResult,
+            },
+            {
+              label: "日志",
+              onClick: async (task) => {
+                setLogsTaskId(task.id);
+                logsTaskIdRef.current = task.id;
+                logsModal.open();
+                try {
+                  const response = await fetchTaskLogs(task.id);
+                  if (logsTaskIdRef.current === task.id) {
+                    setCurrentLogs(response.logs || "No logs available");
+                  }
+                } catch (err) {
+                  if (logsTaskIdRef.current === task.id) {
+                    setCurrentLogs(
+                      err instanceof Error ? err.message : "Failed to fetch logs"
+                    );
+                  }
+                }
+              },
+              color: "#007bff",
+            },
+            {
+              label: "删除",
+              onClick: async (task) => {
+                try {
+                  await deleteTask(task.id);
+                  await loadOthersTasks();
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "删除失败");
+                }
+              },
+              color: "#dc3545",
+              condition: actionConditions.isOwner,
+              confirmMessage: confirmMessages.deleteOther,
+            },
+          ]}
+          emptyMessage="暂无其他任务"
+        />
 
         {/* 分页控件 */}
         <Pagination

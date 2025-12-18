@@ -1,5 +1,6 @@
 import React from "react";
 import { CollapsiblePanel, TaskTable } from "../components";
+import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
 import { TestRunForm, TaskSummary, Profile } from "../types";
 import { API_BASE, getAuthToken } from "../api";
 import { downloadUrl } from "../api";
@@ -421,13 +422,57 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
         <TaskTable
           tasks={tasks.filter(t => t.engine === "pytest")}
           profile={profile}
-          onDownload={(taskId) => window.open(downloadUrl(taskId), "_blank")}
-          onPreview={handlePreview}
-          onArchive={handleArchive}
-          onViewLogs={handleViewLogs}
-          onRetry={handleRetry}
-          onCancel={handleCancel}
-          onDelete={handleDelete}
+          columns={[
+            { key: "id", label: "ID", render: columnRenderers.id },
+            { key: "uuid", label: "UUID", render: columnRenderers.uuid },
+            { key: "engine", label: "引擎", render: columnRenderers.engine },
+            { key: "model", label: "模型", render: columnRenderers.model },
+            { key: "status", label: "状态", render: columnRenderers.status },
+            { key: "creator", label: "创建者", render: columnRenderers.creator },
+            { key: "createdAt", label: "创建时间", render: columnRenderers.createdAt },
+          ]}
+          actions={[
+            {
+              label: "下载",
+              onClick: (task) => window.open(downloadUrl(task.id), "_blank"),
+              condition: actionConditions.hasResult,
+            },
+            {
+              label: "预览",
+              onClick: (task) => handlePreview(task.id),
+              color: "#17a2b8",
+              condition: actionConditions.hasResult,
+            },
+            {
+              label: "归档",
+              onClick: (task) => handleArchive(task.id),
+              condition: actionConditions.canArchive,
+            },
+            {
+              label: "日志",
+              onClick: (task) => handleViewLogs(task.id),
+              color: "#007bff",
+            },
+            {
+              label: "重试",
+              onClick: (task) => handleRetry(task.id),
+              color: "#28a745",
+            },
+            {
+              label: "取消",
+              onClick: (task) => handleCancel(task.id),
+              color: "#ff9800",
+              condition: (task, profile) =>
+                actionConditions.isOwner(task, profile) && actionConditions.isRunningOrQueued(task),
+            },
+            {
+              label: "删除",
+              onClick: (task) => handleDelete(task.id),
+              color: "#dc3545",
+              condition: actionConditions.isOwner,
+              confirmMessage: confirmMessages.delete,
+            },
+          ]}
           emptyMessage="暂无基础测试任务"
         />
     </section>

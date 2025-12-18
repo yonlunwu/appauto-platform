@@ -1,5 +1,6 @@
 import React from "react";
-import { CollapsiblePanel, StatusBadge } from "../components";
+import { CollapsiblePanel, TaskTable } from "../components";
+import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
 import { TestRunForm, TaskSummary, Profile } from "../types";
 import { API_BASE, getAuthToken } from "../api";
 
@@ -576,74 +577,44 @@ export const DeploymentPage: React.FC<DeploymentPageProps> = ({
       {/* 部署任务列表 */}
       <section className="panel" style={{ marginTop: "1rem" }}>
         <h2>部署任务列表</h2>
-        {deployTasks.length > 0 ? (
-          <>
-            <p>
-              共 {deployTasks.length} 条部署任务
-            </p>
-            <table className="task-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>类型</th>
-                  <th>状态</th>
-                  <th>创建时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {deployTasks.map((task) => (
-                  <tr key={task.id}>
-                    <td>{task.display_id || task.id}</td>
-                    <td>{task.model}</td>
-                    <td>
-                      <StatusBadge status={task.status} />
-                    </td>
-                    <td>
-                      {new Date(task.created_at).toLocaleString("zh-CN")}
-                    </td>
-                    <td>
-                      <button
-                        className="secondary"
-                        onClick={() => handleViewLogs(task.id)}
-                        style={{ color: "#6366f1" }}
-                      >
-                        日志
-                      </button>
-                      {task.status === "running" && (
-                        <button
-                          className="secondary"
-                          onClick={() => cancelTask(task.id)}
-                          style={{ color: "#f59e0b" }}
-                        >
-                          取消
-                        </button>
-                      )}
-                      {task.status === "failed" && (
-                        <button
-                          className="secondary"
-                          onClick={() => retryTask(task.id)}
-                          style={{ color: "#10b981" }}
-                        >
-                          重试
-                        </button>
-                      )}
-                      <button
-                        className="secondary"
-                        onClick={() => deleteTask(task.id)}
-                        style={{ color: "#ef4444" }}
-                      >
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        ) : (
-          <p>暂无部署任务</p>
-        )}
+        <TaskTable
+          tasks={deployTasks}
+          profile={profile}
+          columns={[
+            { key: "id", label: "ID", render: columnRenderers.id },
+            { key: "type", label: "类型", render: columnRenderers.model },
+            { key: "status", label: "状态", render: columnRenderers.status },
+            { key: "createdAt", label: "创建时间", render: (task) => new Date(task.created_at).toLocaleString("zh-CN") },
+          ]}
+          actions={[
+            {
+              label: "日志",
+              onClick: (task) => handleViewLogs(task.id),
+              color: "#6366f1",
+            },
+            {
+              label: "取消",
+              onClick: (task) => cancelTask(task.id),
+              color: "#f59e0b",
+              condition: actionConditions.isRunning,
+            },
+            {
+              label: "重试",
+              onClick: (task) => retryTask(task.id),
+              color: "#10b981",
+              condition: actionConditions.isFailed,
+            },
+            {
+              label: "删除",
+              onClick: (task) => deleteTask(task.id),
+              color: "#ef4444",
+              confirmMessage: confirmMessages.deleteDeployment,
+            },
+          ]}
+          emptyMessage="暂无部署任务"
+          showTaskCount={true}
+          taskCountLabel="共"
+        />
       </section>
     </div>
   );

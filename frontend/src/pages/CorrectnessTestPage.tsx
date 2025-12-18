@@ -1,5 +1,6 @@
 import React from "react";
-import { CollapsiblePanel, StatusBadge } from "../components";
+import { CollapsiblePanel, TaskTable } from "../components";
+import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
 import { TestRunForm, TaskSummary, Profile, ModelInfo } from "../types";
 import { runEvalTest } from "../api";
 
@@ -955,124 +956,50 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
           <h2 style={{ margin: 0 }}>任务列表</h2>
-          {tasks.filter(t => t.engine === "evalscope" && t.parameters?.dataset).length > 0 && (
-            <span style={{ color: "#94a3b8", fontSize: "0.875rem" }}>
-              本页任务共计 {tasks.filter(t => t.engine === "evalscope" && t.parameters?.dataset).length} 条
-            </span>
-          )}
         </div>
-        {tasks.filter(t => t.engine === "evalscope" && t.parameters?.dataset).length === 0 ? (
-          <p style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
-            暂无正确性测试任务
-          </p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>UUID</th>
-                <th>数据集</th>
-                <th>模型</th>
-                <th>状态</th>
-                <th style={{ minWidth: "80px" }}>得分</th>
-                <th>创建者</th>
-                <th>创建时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.filter(t => t.engine === "evalscope" && t.parameters?.dataset).map((task) => (
-                <tr key={task.id}>
-                  <td>{task.display_id || task.id}</td>
-                  <td>
-                    <span
-                      style={{
-                        fontFamily: "monospace",
-                        fontSize: "0.75rem",
-                        color: "#666"
-                      }}
-                      title={task.uuid}
-                    >
-                      {task.uuid.substring(0, 8)}
-                    </span>
-                  </td>
-                  <td>{task.parameters?.dataset || "未知"}</td>
-                  <td>{task.model}</td>
-                  <td>
-                    <StatusBadge status={task.status} />
-                  </td>
-                  <td>
-                    {task.status === "completed" ? (
-                      task.summary?.score !== undefined ? (
-                        <span style={{ fontWeight: "600", color: "#28a745" }}>
-                          {task.summary.score}
-                        </span>
-                      ) : (
-                        <span style={{ color: "#999" }}>-</span>
-                      )
-                    ) : task.status === "running" ? (
-                      <span style={{ color: "#856404" }}>计算中...</span>
-                    ) : (
-                      <span style={{ color: "#999" }}>-</span>
-                    )}
-                  </td>
-                  <td>
-                    {task.user_email ? (
-                      <span style={{
-                        color: task.user_id === profile?.user_id ? "#28a745" : "#666",
-                        fontWeight: task.user_id === profile?.user_id ? "600" : "normal"
-                      }}>
-                        {task.user_email}
-                      </span>
-                    ) : (
-                      <span style={{ color: "#999" }}>未知</span>
-                    )}
-                  </td>
-                  <td>{new Date(task.created_at).toLocaleString()}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                      <button
-                        className="secondary"
-                        onClick={() => handleViewLogs(task.id)}
-                        style={{ color: "#007bff" }}
-                      >
-                        日志
-                      </button>
-                      <button
-                        className="secondary"
-                        onClick={() => handleRetry(task.id)}
-                        style={{ color: "#28a745" }}
-                      >
-                        重试
-                      </button>
-                      {/* Only show cancel button if task belongs to current user and is queued/running */}
-                      {(!task.user_id || task.user_id === profile?.user_id) &&
-                       (task.status === "queued" || task.status === "running") && (
-                        <button
-                          className="secondary"
-                          onClick={() => handleCancel(task.id)}
-                          style={{ color: "#ff9800" }}
-                        >
-                          取消
-                        </button>
-                      )}
-                      {/* Only show delete button if task belongs to current user */}
-                      {(!task.user_id || task.user_id === profile?.user_id) && (
-                        <button
-                          className="secondary"
-                          onClick={() => handleDelete(task.id)}
-                          style={{ color: "#dc3545" }}
-                        >
-                          删除
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <TaskTable
+          tasks={tasks.filter(t => t.engine === "evalscope" && t.parameters?.dataset)}
+          profile={profile}
+          columns={[
+            { key: "id", label: "ID", render: columnRenderers.id },
+            { key: "uuid", label: "UUID", render: columnRenderers.uuid },
+            { key: "dataset", label: "数据集", render: columnRenderers.dataset },
+            { key: "model", label: "模型", render: columnRenderers.model },
+            { key: "status", label: "状态", render: columnRenderers.status },
+            { key: "score", label: "得分", render: columnRenderers.score, headerStyle: { minWidth: "80px" } },
+            { key: "creator", label: "创建者", render: columnRenderers.creator },
+            { key: "createdAt", label: "创建时间", render: columnRenderers.createdAt },
+          ]}
+          actions={[
+            {
+              label: "日志",
+              onClick: (task) => handleViewLogs(task.id),
+              color: "#007bff",
+            },
+            {
+              label: "重试",
+              onClick: (task) => handleRetry(task.id),
+              color: "#28a745",
+            },
+            {
+              label: "取消",
+              onClick: (task) => handleCancel(task.id),
+              color: "#ff9800",
+              condition: (task, profile) =>
+                actionConditions.isOwner(task, profile) && actionConditions.isRunningOrQueued(task),
+            },
+            {
+              label: "删除",
+              onClick: (task) => handleDelete(task.id),
+              color: "#dc3545",
+              condition: actionConditions.isOwner,
+              confirmMessage: confirmMessages.deleteWithDataset,
+            },
+          ]}
+          emptyMessage="暂无正确性测试任务"
+          showTaskCount={true}
+          taskCountLabel="本页任务共计"
+        />
       </section>
     </div>
   );

@@ -1,5 +1,6 @@
 import React from "react";
-import { CollapsiblePanel, Pagination } from "../components";
+import { CollapsiblePanel, TaskTable, Pagination } from "../components";
+import { TaskTableColumn, TaskTableAction, columnRenderers, actionConditions, confirmMessages } from "../components/TaskTable";
 import { TaskSummary, Profile } from "../types";
 import { updateAppauto, fetchTaskLogs, deleteTask, UserInfo } from "../api";
 import { UsePaginationReturn } from "../hooks/usePagination";
@@ -346,107 +347,57 @@ export const SystemManagementPage: React.FC<SystemManagementPageProps> = ({
       {/* 系统维护任务列表 */}
       <section className="panel" style={{ marginTop: "1rem" }}>
         <h2>系统维护任务列表</h2>
-        <div style={{ overflowX: "auto" }}>
-          <table className="tasks-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>状态</th>
-                <th>操作</th>
-                <th>分支</th>
-                <th>创建者</th>
-                <th>创建时间</th>
-                <th>完成时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {systemTasks.map((task) => (
-                <tr key={task.id}>
-                  <td>{task.display_id || task.id}</td>
-                  <td>
-                    <span
-                      className={`status-badge status-${task.status.toLowerCase()}`}
-                    >
-                      {task.status}
-                    </span>
-                  </td>
-                  <td>{String(task.parameters?.operation || "-")}</td>
-                  <td>{String(task.parameters?.branch || "-")}</td>
-                  <td>
-                    {task.user_email ? (
-                      <span style={{
-                        color: task.user_id === profile?.user_id ? "#28a745" : "#666",
-                        fontWeight: task.user_id === profile?.user_id ? "600" : "normal"
-                      }}>
-                        {task.user_email}
-                      </span>
-                    ) : (
-                      <span style={{ color: "#999" }}>未知</span>
-                    )}
-                  </td>
-                  <td>{new Date(task.created_at).toLocaleString()}</td>
-                  <td>
-                    {task.completed_at
-                      ? new Date(task.completed_at).toLocaleString()
-                      : "-"}
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <button
-                        className="secondary"
-                        onClick={async () => {
-                          setLogsTaskId(task.id);
-                          logsTaskIdRef.current = task.id;
-                          logsModal.open();
-                          try {
-                            const response = await fetchTaskLogs(task.id);
-                            if (logsTaskIdRef.current === task.id) {
-                              setCurrentLogs(response.logs || "No logs available");
-                            }
-                          } catch (err) {
-                            if (logsTaskIdRef.current === task.id) {
-                              setCurrentLogs(
-                                err instanceof Error ? err.message : "Failed to fetch logs"
-                              );
-                            }
-                          }
-                        }}
-                        style={{ color: "#007bff" }}
-                      >
-                        日志
-                      </button>
-                      {(!task.user_id || task.user_id === profile?.user_id) && (
-                        <button
-                          className="secondary"
-                          onClick={async () => {
-                            if (
-                              confirm(`确定要删除任务 ${task.display_id || task.id} 吗？`)
-                            ) {
-                              try {
-                                await deleteTask(task.id);
-                                await loadSystemTasks();
-                              } catch (err) {
-                                alert(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "删除失败"
-                                );
-                              }
-                            }
-                          }}
-                          style={{ color: "#dc3545" }}
-                        >
-                          删除
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TaskTable
+          tasks={systemTasks}
+          profile={profile}
+          columns={[
+            { key: "id", label: "ID", render: columnRenderers.id },
+            { key: "status", label: "状态", render: columnRenderers.status },
+            { key: "operation", label: "操作", render: columnRenderers.operation },
+            { key: "branch", label: "分支", render: columnRenderers.branch },
+            { key: "creator", label: "创建者", render: columnRenderers.creator },
+            { key: "createdAt", label: "创建时间", render: columnRenderers.createdAt },
+            { key: "completedAt", label: "完成时间", render: columnRenderers.completedAt },
+          ]}
+          actions={[
+            {
+              label: "日志",
+              onClick: async (task) => {
+                setLogsTaskId(task.id);
+                logsTaskIdRef.current = task.id;
+                logsModal.open();
+                try {
+                  const response = await fetchTaskLogs(task.id);
+                  if (logsTaskIdRef.current === task.id) {
+                    setCurrentLogs(response.logs || "No logs available");
+                  }
+                } catch (err) {
+                  if (logsTaskIdRef.current === task.id) {
+                    setCurrentLogs(
+                      err instanceof Error ? err.message : "Failed to fetch logs"
+                    );
+                  }
+                }
+              },
+              color: "#007bff",
+            },
+            {
+              label: "删除",
+              onClick: async (task) => {
+                try {
+                  await deleteTask(task.id);
+                  await loadSystemTasks();
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "删除失败");
+                }
+              },
+              color: "#dc3545",
+              condition: actionConditions.isOwner,
+              confirmMessage: confirmMessages.deleteSystem,
+            },
+          ]}
+          emptyMessage="暂无系统维护任务"
+        />
 
         {/* 分页控件 */}
         <Pagination
