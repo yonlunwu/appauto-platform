@@ -314,12 +314,12 @@ class CommandExecutor(BaseExecutor):
         # 添加飞书用户（可选）
         lark_user = payload.get("lark_user")
         if lark_user:
-            cmd_parts.extend(["--lark-user", lark_user])
+            cmd_parts.append(f"--lark-user={lark_user}")
 
         # 添加主题（可选）
         topic = payload.get("topic")
         if topic:
-            cmd_parts.extend(["--topic", topic])
+            cmd_parts.append(f"--topic={topic}")
 
         # 添加测试路径
         testpaths = payload.get("testpaths")
@@ -329,58 +329,61 @@ class CommandExecutor(BaseExecutor):
                 testpaths = "testcases/sanity_check/amaas/test_amaas.py"
             else:
                 testpaths = "testcases/sanity_check/ft/test_ft.py"
-        cmd_parts.extend(["--testpaths", testpaths])
+        cmd_parts.append(f"--testpaths={testpaths}")
 
-        # 添加 IP（从 ssh_config 获取）
-        if ssh_config and ssh_config.get("host"):
-            cmd_parts.extend(["--ip", ssh_config["host"]])
-
-        # 添加 FT 端口（FT场景特有）
-        if scenario == "ft":
-            ft_port = payload.get("ft_port", 35000)
-            cmd_parts.extend(["--ft_port", str(ft_port)])
-
-        # 添加测试级别
-        case_level = payload.get("case_level")
-        if case_level:
-            cmd_parts.extend(["--case-level", case_level])
-
-        # 添加模型优先级
-        model_priority = payload.get("model_priority")
-        if model_priority:
-            cmd_parts.extend(["--model_priority", model_priority])
-
-        # 添加 SSH 用户和端口
-        if ssh_config:
-            if ssh_config.get("user"):
-                cmd_parts.extend(["--ssh_user", ssh_config["user"]])
-            if ssh_config.get("port"):
-                cmd_parts.extend(["--ssh_port", str(ssh_config["port"])])
-
-        # 添加 GPU 配置（可选）
-        need_empty_gpu_count = payload.get("need_empty_gpu_count")
-        if need_empty_gpu_count is not None:
-            cmd_parts.extend(["--need_empty_gpu_count", str(need_empty_gpu_count)])
-
-        # 添加 TP 配置（可选）
-        tp = payload.get("tp")
-        if tp:
-            cmd_parts.extend(["--tp", str(tp)])
-
-        # 添加通知组（可选）
+        # 添加通知组（可选）- 必须在 testpaths 之后，作为额外参数传递
         notify_group = payload.get("notify_group")
         if notify_group:
-            cmd_parts.extend(["--notify-group", notify_group])
+            cmd_parts.append(f"--notify-group={notify_group}")
 
         # 添加报告服务器（可选）
         report_server = payload.get("report_server")
         if report_server:
-            cmd_parts.extend(["--report-server", report_server])
+            cmd_parts.append(f"--report-server={report_server}")
 
         # 添加报告 URL（可选）
         report_url = payload.get("report_url")
         if report_url:
-            cmd_parts.extend(["--report-url", report_url])
+            cmd_parts.append(f"--report-url={report_url}")
+
+        # 以下参数作为额外参数传递（使用 --key=value 格式）
+        # 这些参数会被 appauto 的 parse_extra_args 解析并写入 test_data.ini
+
+        # 添加 IP（从 ssh_config 获取）
+        if ssh_config and ssh_config.get("host"):
+            cmd_parts.append(f"--ip={ssh_config['host']}")
+
+        # 添加 FT 端口（FT场景特有）
+        if scenario == "ft":
+            ft_port = payload.get("ft_port", 35000)
+            cmd_parts.append(f"--ft_port={ft_port}")
+
+        # 添加测试级别
+        case_level = payload.get("case_level")
+        if case_level:
+            cmd_parts.append(f"--case-level={case_level}")
+
+        # 添加模型优先级
+        model_priority = payload.get("model_priority")
+        if model_priority:
+            cmd_parts.append(f"--model_priority={model_priority}")
+
+        # 添加 SSH 用户和端口
+        if ssh_config:
+            if ssh_config.get("user"):
+                cmd_parts.append(f"--ssh_user={ssh_config['user']}")
+            if ssh_config.get("port"):
+                cmd_parts.append(f"--ssh_port={ssh_config['port']}")
+
+        # 添加 GPU 配置（可选）
+        need_empty_gpu_count = payload.get("need_empty_gpu_count")
+        if need_empty_gpu_count is not None:
+            cmd_parts.append(f"--need_empty_gpu_count={need_empty_gpu_count}")
+
+        # 添加 TP 配置（可选）
+        tp = payload.get("tp")
+        if tp:
+            cmd_parts.append(f"--tp={tp}")
 
         # 添加额外的 pytest 参数
         pytest_args = payload.get("pytest_args")
@@ -390,7 +393,16 @@ class CommandExecutor(BaseExecutor):
             if isinstance(pytest_args, list):
                 cmd_parts.extend(pytest_args)
 
-        return await self._run_command(cmd_parts)
+        # 计算 appauto 源码目录（需要在此目录下运行 pytest）
+        # appauto_path 格式: /path/to/venvs/appauto-{branch}/.venv/bin/appauto
+        # 源码目录应该是: /path/to/venvs/appauto-{branch}/appauto
+        appauto_src_dir = Path(self.appauto_path).parent.parent.parent / "appauto"
+        if not appauto_src_dir.exists():
+            self.log_error(f"Appauto source directory not found: {appauto_src_dir}")
+            raise FileNotFoundError(f"Appauto source directory not found: {appauto_src_dir}")
+
+        self.log_info(f"Running pytest in appauto source directory: {appauto_src_dir}")
+        return await self._run_command(cmd_parts, cwd=str(appauto_src_dir))
 
     async def _execute_env_deploy(self, payload: Dict[str, Any]) -> ExecutionResult:
         """执行环境部署
@@ -478,18 +490,22 @@ class CommandExecutor(BaseExecutor):
         self,
         cmd_parts: List[str],
         output_file: Optional[str] = None,
+        cwd: Optional[str] = None,
     ) -> ExecutionResult:
         """运行命令并捕获输出
 
         Args:
             cmd_parts: 命令参数列表
             output_file: 预期的输出文件路径
+            cwd: 工作目录（可选）
 
         Returns:
             ExecutionResult: 执行结果
         """
         cmd_str = " ".join(shlex.quote(part) for part in cmd_parts)
         self.log_info(f"Running command: {cmd_str}")
+        if cwd:
+            self.log_info(f"Working directory: {cwd}")
 
         try:
             # 执行命令
@@ -497,6 +513,7 @@ class CommandExecutor(BaseExecutor):
                 *cmd_parts,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
             )
 
             # 等待命令完成（带超时）
