@@ -47,8 +47,6 @@ interface TaskTableProps {
   columns: TaskTableColumn[];
   actions: TaskTableAction[];
   emptyMessage?: string;
-  showTaskCount?: boolean;  // 是否显示任务计数
-  taskCountLabel?: string;  // 任务计数标签（如 "本页任务共计"）
   defaultSortColumn?: string;  // 默认排序列
   defaultSortDirection?: SortDirection;  // 默认排序方向
   enableSelection?: boolean;  // 是否启用行选中功能
@@ -62,8 +60,6 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   columns,
   actions,
   emptyMessage = "暂无任务",
-  showTaskCount = false,
-  taskCountLabel = "任务共计",
   defaultSortColumn,
   defaultSortDirection = "desc",
   enableSelection = false,
@@ -254,11 +250,6 @@ export const TaskTable: React.FC<TaskTableProps> = ({
         </div>
       )}
 
-      {showTaskCount && (
-        <p style={{ marginBottom: "1rem", color: "#94a3b8", fontSize: "0.875rem" }}>
-          {taskCountLabel} {tasks.length} 条
-        </p>
-      )}
       <table>
         <thead>
           <tr>

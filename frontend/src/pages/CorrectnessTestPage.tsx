@@ -956,6 +956,9 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
       <section className="panel" style={{ marginTop: "1rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
           <h2 style={{ margin: 0 }}>任务列表</h2>
+          <span style={{ color: "#94a3b8", fontSize: "0.875rem" }}>
+            本页任务共计 {tasks.filter(t => t.engine === "evalscope" && t.parameters?.dataset).length} 条
+          </span>
         </div>
         <TaskTable
           tasks={tasks.filter(t => t.engine === "evalscope" && t.parameters?.dataset)}
@@ -1013,8 +1016,6 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
             },
           ]}
           emptyMessage="暂无正确性测试任务"
-          showTaskCount={true}
-          taskCountLabel="本页任务共计"
         />
       </section>
     </div>

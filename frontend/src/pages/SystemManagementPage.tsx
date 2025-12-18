@@ -346,7 +346,12 @@ export const SystemManagementPage: React.FC<SystemManagementPageProps> = ({
 
       {/* 系统维护任务列表 */}
       <section className="panel" style={{ marginTop: "1rem" }}>
-        <h2>系统维护任务列表</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h2 style={{ margin: 0 }}>系统维护任务列表</h2>
+          <span style={{ color: "#94a3b8", fontSize: "0.875rem" }}>
+            本页任务共计 {systemTasks.length} 条
+          </span>
+        </div>
         <TaskTable
           tasks={systemTasks}
           profile={profile}
