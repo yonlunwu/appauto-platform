@@ -237,7 +237,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                   type="text"
                   value={form.case_level || ""}
                   onChange={(e) => updateForm("case_level", e.target.value)}
-                  placeholder={`例如: ${form.scenario}_ci_sanity_check`}
+                  placeholder={`默认: ${form.scenario}_ci_sanity_check`}
                 />
               </label>
 
@@ -305,7 +305,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                   type="text"
                   value={form.topic || ""}
                   onChange={(e) => updateForm("topic", e.target.value)}
-                  placeholder="测试主题"
+                  placeholder={`默认: 基于 ${form.scenario} 测试，mark：${form.case_level || `${form.scenario}_ci_sanity_check`}`}
                 />
               </label>
 
@@ -315,7 +315,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                   type="text"
                   value={form.notify_group || ""}
                   onChange={(e) => updateForm("notify_group", e.target.value)}
-                  placeholder="例如: oc_e005f4612602e5af93d6272c0e8a1355"
+                  placeholder={`默认: ${form.scenario === "ft" ? "oc_6904399bb84c27191bfa1d7ce0c91066" : "oc_e005f4612602e5af93d6272c0e8a1355"}`}
                 />
               </label>
             </div>
@@ -394,19 +394,27 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                       timeout: 30,
                     };
 
+                    // 设置默认值
+                    const defaultCaseLevel = `${form.scenario}_ci_sanity_check`;
+                    const actualCaseLevel = form.case_level || defaultCaseLevel;
+                    const defaultTopic = `基于 ${form.scenario} 测试，mark：${actualCaseLevel}`;
+                    const defaultNotifyGroup = form.scenario === "ft"
+                      ? "oc_6904399bb84c27191bfa1d7ce0c91066"
+                      : "oc_e005f4612602e5af93d6272c0e8a1355";
+
                     const payload = {
                       scenario: form.scenario,
                       ssh_config,
                       appauto_branch: form.appauto_branch || "main",
                       testpaths: form.testpaths || undefined,
-                      case_level: form.case_level || undefined,
+                      case_level: form.case_level || defaultCaseLevel,
                       model_priority: form.model_priority || undefined,
                       ft_port: form.ft_port || undefined,
                       need_empty_gpu_count: form.need_empty_gpu_count !== undefined ? form.need_empty_gpu_count : undefined,
                       tp: form.tp || undefined,
                       lark_user: form.lark_user || undefined,
-                      topic: form.topic || undefined,
-                      notify_group: form.notify_group || undefined,
+                      topic: form.topic || defaultTopic,
+                      notify_group: form.notify_group || defaultNotifyGroup,
                       report_server: form.report_server || undefined,
                       report_url: form.report_url || undefined,
                       pytest_args: form.pytest_args || undefined,
