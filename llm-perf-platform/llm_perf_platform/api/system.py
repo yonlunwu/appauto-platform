@@ -55,61 +55,55 @@ def get_admin_user(current_user: UserAccount = Depends(get_current_user)) -> Use
 def get_appauto_versions(current_user: UserAccount = Depends(get_admin_user)):
     """获取已安装的 appauto 版本列表
 
-    扫描 ~/.local/share/llm-perf/venvs/ 目录，返回所有已安装的 appauto 版本
+    扫描所有已创建的独立 appauto 仓库，返回所有已安装的版本
     """
-    appauto_path_str = os.getenv("APPAUTO_PATH")
-    if not appauto_path_str:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="APPAUTO_PATH environment variable is not set. Please configure it in the deployment."
-        )
-    appauto_path = Path(appauto_path_str)
-    venv_base_path = Path.home() / ".local/share/llm-perf/venvs"
+    from llm_perf_platform.services.venv_manager import get_venv_manager
+    import subprocess
+    import logging
+
+    logger = logging.getLogger(__name__)
+    venv_manager = get_venv_manager()
 
     versions = []
 
-    if venv_base_path.exists():
-        for venv_dir in venv_base_path.iterdir():
-            if venv_dir.is_dir() and venv_dir.name.startswith("appauto-"):
-                branch = venv_dir.name.replace("appauto-", "")
-                venv_path = venv_dir / ".venv"
+    # 使用 venv_manager 获取所有已安装的仓库
+    for branch in venv_manager.list_repos():
+        repo_path = venv_manager.get_repo_path(branch)
+        venv_path = repo_path / ".venv"
+        appauto_bin = venv_manager.get_appauto_bin_path(branch)
 
-                version_info = AppautoVersionInfo(
-                    branch=branch,
-                    venv_path=str(venv_path),
-                    exists=venv_path.exists()
+        version_info = AppautoVersionInfo(
+            branch=branch,
+            venv_path=str(venv_path),
+            exists=appauto_bin.exists()
+        )
+
+        # 尝试获取版本号
+        if appauto_bin.exists():
+            try:
+                result = subprocess.run(
+                    [str(appauto_bin), "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
                 )
+                if result.returncode == 0:
+                    version_info.version = result.stdout.strip()
+                    logger.info(f"获取 {branch} 版本成功: {version_info.version}")
+                else:
+                    logger.warning(f"获取 {branch} 版本失败: returncode={result.returncode}, stderr={result.stderr}")
+            except Exception as e:
+                logger.error(f"获取 {branch} 版本时出错: {e}")
 
-                # 尝试获取版本号
-                if venv_path.exists():
-                    appauto_bin = venv_path / "bin" / "appauto"
-                    if appauto_bin.exists():
-                        try:
-                            import subprocess
-                            import logging
-                            logger = logging.getLogger(__name__)
+        versions.append(version_info)
 
-                            result = subprocess.run(
-                                [str(appauto_bin), "--version"],
-                                capture_output=True,
-                                text=True,
-                                timeout=5
-                            )
-                            if result.returncode == 0:
-                                version_info.version = result.stdout.strip()
-                                logger.info(f"获取 {branch} 版本成功: {version_info.version}")
-                            else:
-                                logger.warning(f"获取 {branch} 版本失败: returncode={result.returncode}, stderr={result.stderr}")
-                        except Exception as e:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.error(f"获取 {branch} 版本时出错: {e}")
-
-                versions.append(version_info)
+    # 获取任意一个仓库路径作为 appauto_path 返回（用于显示）
+    appauto_repo = venv_manager.get_any_repo_path()
+    appauto_path_display = str(appauto_repo) if appauto_repo else str(venv_manager.base_dir)
 
     return AppautoVersionsResponse(
         versions=versions,
-        appauto_path=str(appauto_path)
+        appauto_path=appauto_path_display
     )
 
 

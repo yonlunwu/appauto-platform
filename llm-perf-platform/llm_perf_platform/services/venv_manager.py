@@ -1,8 +1,13 @@
 """
 Virtual environment manager for multiple appauto versions.
 
-This module manages separate virtual environments for different appauto branches,
-allowing concurrent tasks to use different versions without conflicts.
+This module manages completely independent appauto repositories for different branches,
+ensuring perfect isolation without any import conflicts.
+
+New architecture:
+- Each branch has its own complete git repository
+- Each repository has its own .venv directory
+- No shared source code or dependencies
 """
 import logging
 import os
@@ -13,49 +18,107 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Base directory for all appauto venvs
-# Default to ~/.local/share/llm-perf/venvs for cross-platform compatibility
-VENV_BASE_DIR = Path(os.getenv("LLM_PERF_VENV_DIR", str(Path.home() / ".local/share/llm-perf/venvs")))
+# Base directory for all independent appauto repositories
+# Changed from 'venvs' to 'appauto-repos' to reflect the new architecture
+REPO_BASE_DIR = Path(os.getenv("LLM_PERF_REPO_DIR", str(Path.home() / ".local/share/llm-perf/appauto-repos")))
 
-# Default appauto source path (can be overridden by environment variable)
-# Use APPAUTO_PATH to match the systemd service configuration
-APPAUTO_SOURCE_PATH = Path(os.getenv("APPAUTO_PATH", str(Path.home() / "work/approaching/code/appauto")))
+# Git remote URL for cloning (can be overridden by environment variable)
+# This should point to the appauto repository
+APPAUTO_GIT_URL = os.getenv("APPAUTO_GIT_URL", "git@github.com:kvcache-ai/appauto.git")
 
 
 class VenvManager:
-    """Manager for appauto virtual environments."""
+    """Manager for independent appauto repository instances.
 
-    def __init__(self, base_dir: Optional[Path] = None, appauto_source: Optional[Path] = None):
+    Each branch gets its own complete repository clone with dedicated venv.
+    This ensures perfect isolation - changes in one branch never affect another.
+    """
+
+    def __init__(self, base_dir: Optional[Path] = None, git_url: Optional[str] = None):
         """
         Initialize venv manager.
 
         Args:
-            base_dir: Base directory for venvs (default: VENV_BASE_DIR)
-            appauto_source: Path to appauto source code (default: APPAUTO_SOURCE_PATH)
+            base_dir: Base directory for repositories (default: REPO_BASE_DIR)
+            git_url: Git URL for cloning appauto (default: APPAUTO_GIT_URL)
         """
-        self.base_dir = base_dir or VENV_BASE_DIR
-        self.appauto_source = appauto_source or APPAUTO_SOURCE_PATH
+        self.base_dir = base_dir or REPO_BASE_DIR
+        self.git_url = git_url or APPAUTO_GIT_URL
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_venv_path(self, branch: str) -> Path:
-        """Get the venv directory path for a specific branch."""
+    def get_repo_path(self, branch: str) -> Path:
+        """Get the repository directory path for a specific branch.
+
+        Args:
+            branch: Git branch name (e.g., "main", "v3.3.1")
+
+        Returns:
+            Path to the independent repository directory
+        """
         # Sanitize branch name for filesystem
         safe_branch = branch.replace("/", "_").replace("\\", "_")
-        return self.base_dir / f"appauto-{safe_branch}"
+        return self.base_dir / safe_branch
 
     def get_appauto_bin_path(self, branch: str) -> Path:
-        """Get the appauto binary path for a specific branch."""
-        venv_path = self.get_venv_path(branch)
-        return venv_path / ".venv" / "bin" / "appauto"
+        """Get the appauto binary path for a specific branch.
 
-    def venv_exists(self, branch: str) -> bool:
-        """Check if venv exists for a branch."""
-        appauto_bin = self.get_appauto_bin_path(branch)
-        return appauto_bin.exists() and appauto_bin.is_file()
+        Args:
+            branch: Git branch name
 
-    def create_venv(self, branch: str) -> bool:
+        Returns:
+            Path to the appauto executable
         """
-        Create a new venv for a specific appauto branch.
+        repo_path = self.get_repo_path(branch)
+        return repo_path / ".venv" / "bin" / "appauto"
+
+    def repo_exists(self, branch: str) -> bool:
+        """Check if repository exists for a branch and is on the correct branch.
+
+        Args:
+            branch: Git branch name
+
+        Returns:
+            True if repository exists and is valid, False otherwise
+        """
+        appauto_bin = self.get_appauto_bin_path(branch)
+        if not (appauto_bin.exists() and appauto_bin.is_file()):
+            return False
+
+        # Verify the repository is on the correct branch
+        repo_path = self.get_repo_path(branch)
+
+        if not (repo_path / ".git").exists():
+            logger.warning(f"Repository directory exists but is not a git repo: {repo_path}")
+            return False
+
+        try:
+            # Check the current branch
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                current_branch = result.stdout.strip()
+                if current_branch != branch:
+                    logger.warning(
+                        f"Repository for '{branch}' exists but is on branch '{current_branch}'. "
+                        f"Will recreate repository."
+                    )
+                    return False
+                return True
+            else:
+                logger.warning(f"Failed to check git branch for '{branch}'")
+                return False
+        except (subprocess.TimeoutExpired, Exception) as e:
+            logger.warning(f"Error checking git branch for '{branch}': {e}")
+            return False
+
+    def create_repo(self, branch: str) -> bool:
+        """
+        Create a new independent repository for a specific appauto branch.
 
         Args:
             branch: Git branch name (e.g., "main", "v3.3.1")
@@ -63,84 +126,79 @@ class VenvManager:
         Returns:
             True if successful, False otherwise
         """
-        venv_path = self.get_venv_path(branch)
-        logger.info(f"Creating venv for appauto branch '{branch}' at {venv_path}")
+        repo_path = self.get_repo_path(branch)
+        logger.info(f"Creating independent repository for appauto branch '{branch}' at {repo_path}")
 
         try:
-            # Check if appauto source exists
-            if not self.appauto_source.exists():
-                logger.error(f"Appauto source not found at {self.appauto_source}")
-                return False
+            # Remove existing repository if any
+            if repo_path.exists():
+                logger.info(f"Removing existing repository at {repo_path}")
+                shutil.rmtree(repo_path)
 
-            # Remove existing venv if any
-            if venv_path.exists():
-                logger.info(f"Removing existing venv at {venv_path}")
-                shutil.rmtree(venv_path)
+            # Create repository directory
+            repo_path.mkdir(parents=True, exist_ok=True)
 
-            # Create venv directory
-            venv_path.mkdir(parents=True, exist_ok=True)
-
-            # Clone appauto source to venv directory (for isolation)
-            appauto_clone = venv_path / "appauto"
-
-            # Try to clone the specific branch directly
-            logger.info(f"Cloning appauto branch '{branch}' from {self.appauto_source}")
+            # Clone appauto repository with specific branch
+            logger.info(f"Cloning appauto from {self.git_url} (branch: {branch})")
             result = subprocess.run(
-                ["git", "clone", "--branch", branch, str(self.appauto_source), str(appauto_clone)],
-                cwd=venv_path,
+                ["git", "clone", "--branch", branch, self.git_url, str(repo_path)],
                 capture_output=True,
                 text=True,
                 timeout=300,
             )
 
-            # If clone with --branch fails, the source repo may not have a local tracking branch
-            # In this case, create it first and retry
             if result.returncode != 0:
-                logger.info(f"Direct clone failed, creating local tracking branch in source repo")
-
-                # Ensure the branch exists as a local tracking branch in source repo
-                checkout_result = subprocess.run(
-                    ["git", "checkout", branch],
-                    cwd=self.appauto_source,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-
-                if checkout_result.returncode != 0:
-                    logger.error(f"Failed to checkout branch '{branch}' in source repo: {checkout_result.stderr}")
-                    return False
-
-                # Switch back to main to avoid issues
-                subprocess.run(
-                    ["git", "checkout", "main"],
-                    cwd=self.appauto_source,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-
-                # Retry clone with --branch
-                logger.info(f"Retrying clone with branch '{branch}'")
+                logger.warning(f"Failed to clone with --branch: {result.stderr}")
+                # Fallback: clone without branch, then checkout
                 result = subprocess.run(
-                    ["git", "clone", "--branch", branch, str(self.appauto_source), str(appauto_clone)],
-                    cwd=venv_path,
+                    ["git", "clone", self.git_url, str(repo_path)],
                     capture_output=True,
                     text=True,
                     timeout=300,
                 )
-
                 if result.returncode != 0:
-                    logger.error(f"Failed to clone appauto with branch '{branch}': {result.stderr}")
+                    logger.error(f"Failed to clone repository: {result.stderr}")
                     return False
 
-            logger.info(f"Successfully cloned appauto on branch '{branch}'")
+                # Checkout the specific branch
+                logger.info(f"Checking out branch '{branch}'")
+                checkout_result = subprocess.run(
+                    ["git", "checkout", branch],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                if checkout_result.returncode != 0:
+                    logger.error(f"Failed to checkout branch '{branch}': {checkout_result.stderr}")
+                    return False
 
-            # Create virtual environment
+            logger.info(f"Successfully cloned repository")
+
+            # Verify we're on the correct branch
+            verify_result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if verify_result.returncode == 0:
+                current_branch = verify_result.stdout.strip()
+                logger.info(f"Repository is on branch '{current_branch}'")
+                if current_branch != branch:
+                    logger.error(f"Branch mismatch: expected '{branch}', got '{current_branch}'")
+                    return False
+            else:
+                logger.error(f"Failed to verify branch: {verify_result.stderr}")
+                return False
+
+            # Create virtual environment in the repository
             logger.info(f"Creating Python virtual environment")
             result = subprocess.run(
                 ["uv", "venv", ".venv"],
-                cwd=venv_path,
+                cwd=repo_path,
                 capture_output=True,
                 text=True,
                 timeout=300,
@@ -149,14 +207,14 @@ class VenvManager:
                 logger.error(f"Failed to create venv: {result.stderr}")
                 return False
 
-            # Install appauto in editable mode
-            logger.info(f"Installing appauto in editable mode")
+            # Install appauto from current directory (non-editable mode for isolation)
+            logger.info(f"Installing appauto in non-editable mode for complete isolation")
             # Set VIRTUAL_ENV to ensure uv installs to the correct environment
             env = os.environ.copy()
-            env["VIRTUAL_ENV"] = str(venv_path / ".venv")
+            env["VIRTUAL_ENV"] = str(repo_path / ".venv")
             result = subprocess.run(
-                ["uv", "pip", "install", "-e", str(appauto_clone), "-i", "https://pypi.tuna.tsinghua.edu.cn/simple"],
-                cwd=venv_path,
+                ["uv", "pip", "install", ".", "-i", "https://pypi.tuna.tsinghua.edu.cn/simple"],
+                cwd=repo_path,
                 capture_output=True,
                 text=True,
                 timeout=600,
@@ -174,19 +232,19 @@ class VenvManager:
                 logger.error(f"Installation stderr: {result.stderr}")
                 return False
 
-            logger.info(f"Successfully created venv for appauto branch '{branch}'")
+            logger.info(f"Successfully created independent repository for appauto branch '{branch}'")
             return True
 
         except subprocess.TimeoutExpired:
-            logger.error(f"Timeout while creating venv for branch '{branch}'")
+            logger.error(f"Timeout while creating repository for branch '{branch}'")
             return False
         except Exception as e:
-            logger.error(f"Error creating venv for branch '{branch}': {e}")
+            logger.error(f"Error creating repository for branch '{branch}': {e}")
             return False
 
-    def ensure_venv(self, branch: str) -> Optional[Path]:
+    def ensure_repo(self, branch: str) -> Optional[Path]:
         """
-        Ensure venv exists for a branch, create if not exists.
+        Ensure repository exists for a branch, create if not exists.
 
         Args:
             branch: Git branch name
@@ -194,37 +252,37 @@ class VenvManager:
         Returns:
             Path to appauto binary if successful, None otherwise
         """
-        if self.venv_exists(branch):
-            logger.debug(f"Venv already exists for branch '{branch}'")
+        if self.repo_exists(branch):
+            logger.debug(f"Repository already exists for branch '{branch}'")
             return self.get_appauto_bin_path(branch)
 
-        logger.info(f"Venv not found for branch '{branch}', creating...")
-        if self.create_venv(branch):
+        logger.info(f"Repository not found for branch '{branch}', creating...")
+        if self.create_repo(branch):
             return self.get_appauto_bin_path(branch)
 
         return None
 
-    def list_venvs(self) -> list[str]:
+    def list_repos(self) -> list[str]:
         """
-        List all available appauto venvs.
+        List all available appauto repositories.
 
         Returns:
-            List of branch names that have venvs
+            List of branch names that have repositories
         """
         if not self.base_dir.exists():
             return []
 
-        venvs = []
-        for venv_dir in self.base_dir.iterdir():
-            if venv_dir.is_dir() and venv_dir.name.startswith("appauto-"):
-                branch = venv_dir.name.replace("appauto-", "")
-                if self.venv_exists(branch):
-                    venvs.append(branch)
-        return venvs
+        repos = []
+        for repo_dir in self.base_dir.iterdir():
+            if repo_dir.is_dir():
+                branch = repo_dir.name
+                if self.repo_exists(branch):
+                    repos.append(branch)
+        return repos
 
-    def remove_venv(self, branch: str) -> bool:
+    def remove_repo(self, branch: str) -> bool:
         """
-        Remove venv for a specific branch.
+        Remove repository for a specific branch.
 
         Args:
             branch: Git branch name
@@ -232,19 +290,59 @@ class VenvManager:
         Returns:
             True if successful, False otherwise
         """
-        venv_path = self.get_venv_path(branch)
-        if not venv_path.exists():
-            logger.warning(f"Venv for branch '{branch}' does not exist")
+        repo_path = self.get_repo_path(branch)
+        if not repo_path.exists():
+            logger.warning(f"Repository for branch '{branch}' does not exist")
             return False
 
         try:
-            logger.info(f"Removing venv for branch '{branch}' at {venv_path}")
-            shutil.rmtree(venv_path)
-            logger.info(f"Successfully removed venv for branch '{branch}'")
+            logger.info(f"Removing repository for branch '{branch}' at {repo_path}")
+            shutil.rmtree(repo_path)
+            logger.info(f"Successfully removed repository for branch '{branch}'")
             return True
         except Exception as e:
-            logger.error(f"Error removing venv for branch '{branch}': {e}")
+            logger.error(f"Error removing repository for branch '{branch}': {e}")
             return False
+
+    def get_any_repo_path(self) -> Optional[Path]:
+        """
+        Get path to any existing repository (for operations that don't depend on branch).
+
+        This is useful for operations like listing branches from git remote,
+        where any repository will do since they all point to the same remote.
+
+        Returns:
+            Path to an existing repository, or None if no repositories exist
+        """
+        repos = self.list_repos()
+        if repos:
+            return self.get_repo_path(repos[0])
+        return None
+
+    # Backwards compatibility aliases
+    def venv_exists(self, branch: str) -> bool:
+        """Alias for repo_exists for backwards compatibility."""
+        return self.repo_exists(branch)
+
+    def create_venv(self, branch: str) -> bool:
+        """Alias for create_repo for backwards compatibility."""
+        return self.create_repo(branch)
+
+    def ensure_venv(self, branch: str) -> Optional[Path]:
+        """Alias for ensure_repo for backwards compatibility."""
+        return self.ensure_repo(branch)
+
+    def list_venvs(self) -> list[str]:
+        """Alias for list_repos for backwards compatibility."""
+        return self.list_repos()
+
+    def remove_venv(self, branch: str) -> bool:
+        """Alias for remove_repo for backwards compatibility."""
+        return self.remove_repo(branch)
+
+    def get_venv_path(self, branch: str) -> Path:
+        """Alias for get_repo_path for backwards compatibility."""
+        return self.get_repo_path(branch)
 
 
 # Global instance

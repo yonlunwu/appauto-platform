@@ -394,9 +394,9 @@ class CommandExecutor(BaseExecutor):
                 cmd_parts.extend(pytest_args)
 
         # 计算 appauto 源码目录（需要在此目录下运行 pytest）
-        # appauto_path 格式: /path/to/venvs/appauto-{branch}/.venv/bin/appauto
-        # 源码目录应该是: /path/to/venvs/appauto-{branch}/appauto
-        appauto_src_dir = Path(self.appauto_path).parent.parent.parent / "appauto"
+        # 新架构：appauto_path 格式: /path/to/appauto-repos/{branch}/.venv/bin/appauto
+        # 源码目录就是: /path/to/appauto-repos/{branch}
+        appauto_src_dir = Path(self.appauto_path).parent.parent.parent
         if not appauto_src_dir.exists():
             self.log_error(f"Appauto source directory not found: {appauto_src_dir}")
             raise FileNotFoundError(f"Appauto source directory not found: {appauto_src_dir}")
@@ -507,6 +507,28 @@ class CommandExecutor(BaseExecutor):
         if cwd:
             self.log_info(f"Working directory: {cwd}")
 
+        # 准备环境变量：确保使用 venv 的 appauto，而不是系统的 APPAUTO_PATH
+        import os
+        env = os.environ.copy()
+
+        # 如果工作目录已指定（通常是 venv 的 appauto 源码目录），
+        # 则覆盖 APPAUTO_PATH 以确保 appauto 代码使用正确的路径
+        if cwd:
+            env["APPAUTO_PATH"] = cwd
+            self.log_info(f"Override APPAUTO_PATH to: {cwd}")
+
+        # 确保不使用系统的 PYTHONPATH，避免导入冲突
+        if "PYTHONPATH" in env:
+            old_pythonpath = env["PYTHONPATH"]
+            # 移除可能指向源仓库的路径
+            pythonpath_parts = [p for p in old_pythonpath.split(":") if p and "appauto" not in p]
+            if pythonpath_parts:
+                env["PYTHONPATH"] = ":".join(pythonpath_parts)
+                self.log_info(f"Filtered PYTHONPATH: {env['PYTHONPATH']}")
+            else:
+                del env["PYTHONPATH"]
+                self.log_info("Removed PYTHONPATH to avoid import conflicts")
+
         try:
             # 执行命令
             process = await asyncio.create_subprocess_exec(
@@ -514,6 +536,7 @@ class CommandExecutor(BaseExecutor):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
+                env=env,
             )
 
             # 等待命令完成（带超时）

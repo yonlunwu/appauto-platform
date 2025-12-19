@@ -637,12 +637,25 @@ def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) 
     from llm_perf_platform.services.venv_manager import get_venv_manager
 
     venv_manager = get_venv_manager()
-    appauto_source = venv_manager.appauto_source
 
-    if not appauto_source.exists():
+    # 新架构：使用任意一个现有的仓库来查询分支信息
+    # 所有仓库都指向同一个远程，所以任何一个都可以
+    appauto_repo = venv_manager.get_any_repo_path()
+
+    if not appauto_repo:
+        # 如果还没有任何仓库，先创建一个 main 分支的仓库
+        logger.info("No existing repositories found, creating main branch repository")
+        if not venv_manager.create_repo("main"):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create appauto repository. Please check git configuration."
+            )
+        appauto_repo = venv_manager.get_repo_path("main")
+
+    if not appauto_repo.exists():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Appauto source not found at {appauto_source}"
+            detail=f"Appauto repository not found at {appauto_repo}"
         )
 
     try:
@@ -653,7 +666,7 @@ def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) 
 
         result = subprocess.run(
             ["git", "branch", "-a"],
-            cwd=appauto_source,
+            cwd=appauto_repo,
             capture_output=True,
             text=True,
             timeout=10,
