@@ -712,7 +712,7 @@ def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) 
 
         return {
             "branches": branches,
-            "source_path": str(appauto_source),
+            "source_path": str(appauto_repo),
         }
 
     except subprocess.TimeoutExpired:
