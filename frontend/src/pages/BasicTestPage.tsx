@@ -243,7 +243,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
 
               <label>
                 模型优先级
-                <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
                   {["P0", "P1", "P2"].map((priority) => {
                     const selectedPriorities = (() => {
                       try {
@@ -255,7 +255,31 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                     const isChecked = selectedPriorities.includes(priority);
 
                     return (
-                      <label key={priority} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                      <label
+                        key={priority}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          padding: "0.5rem 1rem",
+                          border: isChecked ? "2px solid #3b82f6" : "2px solid #334155",
+                          borderRadius: "0.375rem",
+                          cursor: "pointer",
+                          backgroundColor: isChecked ? "#1e3a8a" : "transparent",
+                          transition: "all 0.2s",
+                          userSelect: "none",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isChecked) {
+                            e.currentTarget.style.borderColor = "#475569";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isChecked) {
+                            e.currentTarget.style.borderColor = "#334155";
+                          }
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -277,8 +301,9 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
 
                             updateForm("model_priority", newPriorities.length > 0 ? JSON.stringify(newPriorities) : "");
                           }}
+                          style={{ display: "none" }}
                         />
-                        <span>{priority}</span>
+                        <span style={{ fontSize: "0.875rem", fontWeight: "500" }}>{priority}</span>
                       </label>
                     );
                   })}
@@ -309,7 +334,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
 
               <label>
                 TP 配置
-                <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
                   {[1, 2, 4, 8].map((tp) => {
                     const selectedTPs = (() => {
                       try {
@@ -321,7 +346,31 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                     const isChecked = selectedTPs.includes(tp);
 
                     return (
-                      <label key={tp} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                      <label
+                        key={tp}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          padding: "0.5rem 1rem",
+                          border: isChecked ? "2px solid #3b82f6" : "2px solid #334155",
+                          borderRadius: "0.375rem",
+                          cursor: "pointer",
+                          backgroundColor: isChecked ? "#1e3a8a" : "transparent",
+                          transition: "all 0.2s",
+                          userSelect: "none",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isChecked) {
+                            e.currentTarget.style.borderColor = "#475569";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isChecked) {
+                            e.currentTarget.style.borderColor = "#334155";
+                          }
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -343,8 +392,9 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
 
                             updateForm("tp", newTPs.length > 0 ? JSON.stringify(newTPs) : "");
                           }}
+                          style={{ display: "none" }}
                         />
-                        <span>{tp}</span>
+                        <span style={{ fontSize: "0.875rem", fontWeight: "500" }}>{tp}</span>
                       </label>
                     );
                   })}
