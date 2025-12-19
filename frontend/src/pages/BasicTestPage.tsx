@@ -260,24 +260,18 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "0.5rem 1rem",
-                          border: isChecked ? "2px solid #3b82f6" : "2px solid #334155",
-                          borderRadius: "0.375rem",
+                          justifyContent: "center",
+                          minWidth: "60px",
+                          padding: "12px 14px",
+                          borderRadius: "8px",
+                          border: isChecked ? "2px solid #6366f1" : "1px solid var(--border-secondary)",
+                          background: isChecked ? "rgba(99, 102, 241, 0.1)" : "var(--bg-input)",
+                          color: "var(--text-primary)",
+                          fontSize: "14px",
+                          fontWeight: isChecked ? "600" : "normal",
                           cursor: "pointer",
-                          backgroundColor: isChecked ? "#1e3a8a" : "transparent",
                           transition: "all 0.2s",
                           userSelect: "none",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isChecked) {
-                            e.currentTarget.style.borderColor = "#475569";
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isChecked) {
-                            e.currentTarget.style.borderColor = "#334155";
-                          }
                         }}
                       >
                         <input
@@ -303,7 +297,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                           }}
                           style={{ display: "none" }}
                         />
-                        <span style={{ fontSize: "0.875rem", fontWeight: "500" }}>{priority}</span>
+                        <span>{priority}</span>
                       </label>
                     );
                   })}
@@ -351,24 +345,18 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "0.5rem 1rem",
-                          border: isChecked ? "2px solid #3b82f6" : "2px solid #334155",
-                          borderRadius: "0.375rem",
+                          justifyContent: "center",
+                          minWidth: "60px",
+                          padding: "12px 14px",
+                          borderRadius: "8px",
+                          border: isChecked ? "2px solid #6366f1" : "1px solid var(--border-secondary)",
+                          background: isChecked ? "rgba(99, 102, 241, 0.1)" : "var(--bg-input)",
+                          color: "var(--text-primary)",
+                          fontSize: "14px",
+                          fontWeight: isChecked ? "600" : "normal",
                           cursor: "pointer",
-                          backgroundColor: isChecked ? "#1e3a8a" : "transparent",
                           transition: "all 0.2s",
                           userSelect: "none",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isChecked) {
-                            e.currentTarget.style.borderColor = "#475569";
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isChecked) {
-                            e.currentTarget.style.borderColor = "#334155";
-                          }
                         }}
                       >
                         <input
@@ -394,7 +382,7 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
                           }}
                           style={{ display: "none" }}
                         />
-                        <span style={{ fontSize: "0.875rem", fontWeight: "500" }}>{tp}</span>
+                        <span>{tp}</span>
                       </label>
                     );
                   })}
