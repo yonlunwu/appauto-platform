@@ -243,13 +243,46 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
 
               <label>
                 模型优先级
-                <input
-                  type="text"
-                  value={form.model_priority || ""}
-                  onChange={(e) => updateForm("model_priority", e.target.value)}
-                  placeholder='例如: ["P0", "P1", "P2"]'
-                />
-                <small style={{ color: "#666" }}>JSON数组格式</small>
+                <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                  {["P0", "P1", "P2"].map((priority) => {
+                    const selectedPriorities = (() => {
+                      try {
+                        return form.model_priority ? JSON.parse(form.model_priority) : [];
+                      } catch {
+                        return [];
+                      }
+                    })();
+                    const isChecked = selectedPriorities.includes(priority);
+
+                    return (
+                      <label key={priority} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const currentPriorities = (() => {
+                              try {
+                                return form.model_priority ? JSON.parse(form.model_priority) : [];
+                              } catch {
+                                return [];
+                              }
+                            })();
+
+                            let newPriorities;
+                            if (e.target.checked) {
+                              newPriorities = [...currentPriorities, priority];
+                            } else {
+                              newPriorities = currentPriorities.filter((p: string) => p !== priority);
+                            }
+
+                            updateForm("model_priority", newPriorities.length > 0 ? JSON.stringify(newPriorities) : "");
+                          }}
+                        />
+                        <span>{priority}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </label>
 
               {form.scenario === "ft" && (
@@ -276,13 +309,46 @@ export const BasicTestPage: React.FC<BasicTestPageProps> = ({
 
               <label>
                 TP 配置
-                <input
-                  type="text"
-                  value={form.tp || ""}
-                  onChange={(e) => updateForm("tp", e.target.value)}
-                  placeholder='例如: [1, 2, 4, 8]'
-                />
-                <small style={{ color: "#666" }}>JSON数组格式</small>
+                <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                  {[1, 2, 4, 8].map((tp) => {
+                    const selectedTPs = (() => {
+                      try {
+                        return form.tp ? JSON.parse(form.tp) : [];
+                      } catch {
+                        return [];
+                      }
+                    })();
+                    const isChecked = selectedTPs.includes(tp);
+
+                    return (
+                      <label key={tp} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const currentTPs = (() => {
+                              try {
+                                return form.tp ? JSON.parse(form.tp) : [];
+                              } catch {
+                                return [];
+                              }
+                            })();
+
+                            let newTPs;
+                            if (e.target.checked) {
+                              newTPs = [...currentTPs, tp];
+                            } else {
+                              newTPs = currentTPs.filter((t: number) => t !== tp);
+                            }
+
+                            updateForm("tp", newTPs.length > 0 ? JSON.stringify(newTPs) : "");
+                          }}
+                        />
+                        <span>{tp}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </label>
             </div>
 
