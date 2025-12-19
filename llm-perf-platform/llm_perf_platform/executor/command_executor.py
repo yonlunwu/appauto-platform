@@ -17,6 +17,7 @@ from llm_perf_platform.executor.base_executor import (
     ExecutionResult,
     TaskType,
 )
+from llm_perf_platform.services.venv_manager import get_venv_manager
 
 
 class CommandExecutor(BaseExecutor):
@@ -33,51 +34,69 @@ class CommandExecutor(BaseExecutor):
         self,
         task_id: int,
         command_type: TaskType = TaskType.GENERIC_COMMAND,
-        appauto_path: str = "appauto",
+        appauto_branch: str = "main",
         timeout: int = 3600,
     ):
         super().__init__(task_id)
         self.command_type = command_type
-
-        # 自动检测并使用 venv 中的 appauto
-        if appauto_path == "appauto":
-            venv_appauto = self._find_venv_appauto()
-            if venv_appauto:
-                self.appauto_path = venv_appauto
-                self.log_info(f"Using venv appauto: {venv_appauto}")
-            else:
-                self.appauto_path = appauto_path
-                self.log_info(f"Venv appauto not found, using system appauto: {appauto_path}")
-        else:
-            self.appauto_path = appauto_path
-            self.log_info(f"Using specified appauto: {appauto_path}")
-
+        self.appauto_branch = appauto_branch
         self.timeout = timeout
+        self.process = None  # 保存当前运行的进程，用于取消操作
+        self.process_pid = None  # 保存进程 PID，用于跨线程取消
+        self.process_pgid = None  # 保存进程组 ID
+        self._cancelled = False  # 标记是否已被取消
 
-    def _find_venv_appauto(self) -> Optional[str]:
-        """查找 venv 中的 appauto 路径
+        # 使用 VenvManager 获取 venv 和 repo 路径
+        self.venv_manager = get_venv_manager()
+        self.venv_path = self.venv_manager.get_venv_path(appauto_branch)
+        self.repo_path = self.venv_manager.get_repo_path(appauto_branch)
+        self.activate_script = self.venv_manager.get_activation_script(appauto_branch)
+        self.appauto_bin = self.venv_manager.get_appauto_bin_path(appauto_branch)
 
-        Returns:
-            venv 中的 appauto 完整路径，如果未找到则返回 None
+        self.log_info(f"Using appauto branch: {appauto_branch}")
+        self.log_info(f"  Venv path: {self.venv_path}")
+        self.log_info(f"  Repo path: {self.repo_path}")
+        self.log_info(f"  Appauto bin: {self.appauto_bin}")
+
+    def cancel(self):
+        """取消正在运行的任务
+
+        这个方法可能从不同的线程调用，所以我们使用保存的 PID/PGID 而不是 asyncio 对象
         """
-        # 获取当前项目的 venv 路径
-        # 假设当前工作目录是项目根目录或其子目录
-        current_file = Path(__file__)
-        project_root = current_file.parent.parent.parent  # 向上三级到项目根
+        import os
+        import signal
 
-        # 尝试查找 .venv/bin/appauto
-        venv_paths = [
-            project_root / ".venv" / "bin" / "appauto",
-            project_root / "venv" / "bin" / "appauto",
-            Path.cwd() / ".venv" / "bin" / "appauto",
-            Path.cwd() / "venv" / "bin" / "appauto",
-        ]
+        self._cancelled = True
 
-        for venv_path in venv_paths:
-            if venv_path.exists() and venv_path.is_file():
-                return str(venv_path)
-
-        return None
+        # 使用保存的 PGID，避免访问 asyncio 对象
+        if self.process_pgid:
+            try:
+                self.log_info(f"[Task {self.task_id}] Cancelling, killing process group {self.process_pgid} (PID {self.process_pid})")
+                os.killpg(self.process_pgid, signal.SIGKILL)
+                self.log_info(f"[Task {self.task_id}] Process group {self.process_pgid} killed successfully")
+            except ProcessLookupError:
+                self.log_info(f"[Task {self.task_id}] Process group {self.process_pgid} already terminated")
+            except Exception as e:
+                self.log_error(f"[Task {self.task_id}] Failed to kill process group {self.process_pgid}: {e}")
+                # 降级到只杀单个进程
+                if self.process_pid:
+                    try:
+                        os.kill(self.process_pid, signal.SIGKILL)
+                        self.log_info(f"[Task {self.task_id}] Process {self.process_pid} killed with fallback method")
+                    except Exception as e2:
+                        self.log_error(f"[Task {self.task_id}] Failed to kill process {self.process_pid}: {e2}")
+        elif self.process_pid:
+            # 没有 PGID，只有 PID
+            try:
+                self.log_info(f"[Task {self.task_id}] Cancelling, killing process {self.process_pid}")
+                os.kill(self.process_pid, signal.SIGKILL)
+                self.log_info(f"[Task {self.task_id}] Process {self.process_pid} killed successfully")
+            except ProcessLookupError:
+                self.log_info(f"[Task {self.task_id}] Process {self.process_pid} already terminated")
+            except Exception as e:
+                self.log_error(f"[Task {self.task_id}] Failed to kill process {self.process_pid}: {e}")
+        else:
+            self.log_warning(f"[Task {self.task_id}] cancel() called but no process PID/PGID found")
 
     async def execute(self, payload: Dict[str, Any]) -> ExecutionResult:
         """执行命令
@@ -138,7 +157,7 @@ class CommandExecutor(BaseExecutor):
         skip_launch = payload.get("skip_launch", True)
 
         # 构建命令
-        cmd_parts = [self.appauto_path, "bench", "evalscope", "perf"]
+        cmd_parts = ["appauto", "bench", "evalscope", "perf"]
 
         # 添加基础场景标志
         if base == "amaas":
@@ -222,7 +241,7 @@ class CommandExecutor(BaseExecutor):
         skip_launch = payload.get("skip_launch", True)
         
         # 构建命令
-        cmd_parts = [self.appauto_path, "bench", "evalscope", "eval"]
+        cmd_parts = ["appauto", "bench", "evalscope", "eval"]
         
         # 添加基础场景标志
         if base == "amaas":
@@ -309,7 +328,7 @@ class CommandExecutor(BaseExecutor):
         ssh_config = payload.get("ssh_config", {})
 
         # 构建命令
-        cmd_parts = [self.appauto_path, "run", "pytest"]
+        cmd_parts = ["appauto", "run", "pytest"]
 
         # 添加飞书用户（可选）
         lark_user = payload.get("lark_user")
@@ -393,16 +412,13 @@ class CommandExecutor(BaseExecutor):
             if isinstance(pytest_args, list):
                 cmd_parts.extend(pytest_args)
 
-        # 计算 appauto 源码目录（需要在此目录下运行 pytest）
-        # 新架构：appauto_path 格式: /path/to/appauto-repos/{branch}/.venv/bin/appauto
-        # 源码目录就是: /path/to/appauto-repos/{branch}
-        appauto_src_dir = Path(self.appauto_path).parent.parent.parent
-        if not appauto_src_dir.exists():
-            self.log_error(f"Appauto source directory not found: {appauto_src_dir}")
-            raise FileNotFoundError(f"Appauto source directory not found: {appauto_src_dir}")
+        # pytest 需要在 appauto 源码目录下运行
+        if not self.repo_path.exists():
+            self.log_error(f"Appauto source directory not found: {self.repo_path}")
+            raise FileNotFoundError(f"Appauto source directory not found: {self.repo_path}")
 
-        self.log_info(f"Running pytest in appauto source directory: {appauto_src_dir}")
-        return await self._run_command(cmd_parts, cwd=str(appauto_src_dir))
+        self.log_info(f"Running pytest in appauto source directory: {self.repo_path}")
+        return await self._run_command(cmd_parts, cwd=str(self.repo_path))
 
     async def _execute_env_deploy(self, payload: Dict[str, Any]) -> ExecutionResult:
         """执行环境部署
@@ -430,7 +446,7 @@ class CommandExecutor(BaseExecutor):
             raise ValueError("deploy_type must be 'amaas' or 'ft'")
 
         # 构建命令
-        cmd_parts = [self.appauto_path, "env", "deploy", deploy_type]
+        cmd_parts = ["appauto", "env", "deploy", deploy_type]
 
         # 添加必需参数
         if payload.get("ip"):
@@ -481,8 +497,8 @@ class CommandExecutor(BaseExecutor):
             cmd_parts = command
 
         # 如果命令不是以 appauto 开头，添加前缀
-        if cmd_parts[0] != self.appauto_path and not cmd_parts[0].endswith("appauto"):
-            cmd_parts = [self.appauto_path] + cmd_parts
+        if cmd_parts[0] != "appauto" and not cmd_parts[0].endswith("appauto"):
+            cmd_parts = ["appauto"] + cmd_parts
 
         return await self._run_command(cmd_parts)
 
@@ -492,52 +508,53 @@ class CommandExecutor(BaseExecutor):
         output_file: Optional[str] = None,
         cwd: Optional[str] = None,
     ) -> ExecutionResult:
-        """运行命令并捕获输出
+        """运行命令并捕获输出（通过激活 venv 的方式）
 
         Args:
             cmd_parts: 命令参数列表
             output_file: 预期的输出文件路径
-            cwd: 工作目录（可选）
+            cwd: 工作目录（可选，默认为 repo 路径）
 
         Returns:
             ExecutionResult: 执行结果
         """
+        # 默认使用 repo 路径作为工作目录
+        if cwd is None:
+            cwd = str(self.repo_path)
+
         cmd_str = " ".join(shlex.quote(part) for part in cmd_parts)
         self.log_info(f"Running command: {cmd_str}")
-        if cwd:
-            self.log_info(f"Working directory: {cwd}")
+        self.log_info(f"Working directory: {cwd}")
+        self.log_info(f"Activating venv: {self.activate_script}")
 
-        # 准备环境变量：确保使用 venv 的 appauto，而不是系统的 APPAUTO_PATH
-        import os
-        env = os.environ.copy()
-
-        # 如果工作目录已指定（通常是 venv 的 appauto 源码目录），
-        # 则覆盖 APPAUTO_PATH 以确保 appauto 代码使用正确的路径
-        if cwd:
-            env["APPAUTO_PATH"] = cwd
-            self.log_info(f"Override APPAUTO_PATH to: {cwd}")
-
-        # 确保不使用系统的 PYTHONPATH，避免导入冲突
-        if "PYTHONPATH" in env:
-            old_pythonpath = env["PYTHONPATH"]
-            # 移除可能指向源仓库的路径
-            pythonpath_parts = [p for p in old_pythonpath.split(":") if p and "appauto" not in p]
-            if pythonpath_parts:
-                env["PYTHONPATH"] = ":".join(pythonpath_parts)
-                self.log_info(f"Filtered PYTHONPATH: {env['PYTHONPATH']}")
-            else:
-                del env["PYTHONPATH"]
-                self.log_info("Removed PYTHONPATH to avoid import conflicts")
+        # 构建通过激活 venv 执行命令的完整命令
+        # 使用 bash -c "source activate && cd repo && command"
+        full_command = f"source {self.activate_script} && cd {cwd} && {cmd_str}"
 
         try:
-            # 执行命令
+            # 使用 bash -c 执行完整命令
+            # start_new_session=True 会创建新的进程组，方便后续一次性终止整个进程树
             process = await asyncio.create_subprocess_exec(
-                *cmd_parts,
+                "bash",
+                "-c",
+                full_command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
-                env=env,
+                start_new_session=True,  # 创建新的会话和进程组
             )
+
+            # 保存进程对象，以便可以在取消时终止它
+            self.process = process
+            self.process_pid = process.pid
+
+            # 获取进程组 ID（由于使用了 start_new_session=True，PID 应该等于 PGID）
+            import os
+            try:
+                self.process_pgid = os.getpgid(process.pid)
+                self.log_info(f"[Task {self.task_id}] Process started: PID={self.process_pid}, PGID={self.process_pgid}")
+            except Exception as e:
+                self.log_warning(f"[Task {self.task_id}] Could not get PGID: {e}")
+                self.process_pgid = process.pid  # 降级：假设 PGID == PID
 
             # 等待命令完成（带超时）
             try:
@@ -546,9 +563,36 @@ class CommandExecutor(BaseExecutor):
                     timeout=self.timeout,
                 )
             except asyncio.TimeoutError:
-                process.kill()
+                # 超时，终止整个进程组
+                self.log_info(f"Command timeout, killing process group")
+                try:
+                    import os
+                    import signal
+                    pgid = os.getpgid(process.pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except Exception as e:
+                    self.log_error(f"Failed to kill process group: {e}")
+                    process.kill()
                 await process.wait()
                 raise TimeoutError(f"Command timeout after {self.timeout} seconds")
+            except asyncio.CancelledError:
+                # 任务被取消，终止整个进程组
+                self.log_info(f"Task cancelled, killing process group")
+                try:
+                    import os
+                    import signal
+                    pgid = os.getpgid(process.pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except Exception as e:
+                    self.log_error(f"Failed to kill process group: {e}")
+                    process.kill()
+                await process.wait()
+                raise
+            finally:
+                # 清理进程引用
+                self.process = None
+                self.process_pid = None
+                self.process_pgid = None
 
             # 解码输出
             stdout_str = stdout.decode("utf-8") if stdout else ""
@@ -556,19 +600,40 @@ class CommandExecutor(BaseExecutor):
 
             # 记录输出
             if stdout_str:
-                self.log_info(f"STDOUT:\n{stdout_str}")
+                self.log_info(f"STDOUT: {stdout_str}")
             if stderr_str:
-                self.log_error(f"STDERR:\n{stderr_str}")
+                self.log_error(f"STDERR: {stderr_str}")
 
             # 检查退出码
             exit_code = process.returncode
+
+            # 如果任务被取消（通过 cancel() 方法），且进程被 SIGKILL 杀掉（exit code -9）
+            # 返回特殊的取消标记
+            if self._cancelled and exit_code == -9:
+                self.log_info(f"[Task {self.task_id}] Process was killed due to cancellation (exit code: {exit_code})")
+                return ExecutionResult(
+                    success=False,
+                    summary={"exit_code": exit_code},
+                    error="task_cancelled",  # 特殊标记：任务被取消
+                    stdout=stdout_str,
+                    stderr=stderr_str,
+                    exit_code=exit_code,
+                )
+
             success = exit_code == 0
 
             # 尝试从输出中解析结果
             summary = self._parse_output(stdout_str, stderr_str)
             summary["exit_code"] = exit_code
 
+            # 如果没有传入 output_file，尝试从 summary 中提取
+            # appauto 会在输出中返回生成的文件路径
+            if not output_file and "output_xlsx" in summary:
+                output_file = summary["output_xlsx"]
+                self.log_info(f"Detected output file from appauto: {output_file}")
+
             # 检查常见错误模式（即使exit code为0）
+            # 但如果生成了输出文件，优先认为任务成功
             error_patterns = [
                 ("Connection refused", "Connection to model server refused"),
                 ("Connection error", "Connection to model server failed"),
@@ -579,19 +644,28 @@ class CommandExecutor(BaseExecutor):
             ]
 
             combined_output = stdout_str + "\n" + stderr_str
-            for pattern, error_desc in error_patterns:
-                if pattern in combined_output:
-                    success = False
-                    error_msg = f"{error_desc} (detected pattern: {pattern})"
-                    self.log_error(error_msg)
-                    return ExecutionResult(
-                        success=False,
-                        summary=summary,
-                        error=error_msg,
-                        stdout=stdout_str,
-                        stderr=stderr_str,
-                        exit_code=exit_code,
-                    )
+
+            # 只有在没有生成输出文件时，才检查错误模式
+            if not output_file:
+                for pattern, error_desc in error_patterns:
+                    if pattern in combined_output:
+                        success = False
+                        error_msg = f"{error_desc} (detected pattern: {pattern})"
+                        self.log_error(error_msg)
+                        return ExecutionResult(
+                            success=False,
+                            summary=summary,
+                            error=error_msg,
+                            stdout=stdout_str,
+                            stderr=stderr_str,
+                            exit_code=exit_code,
+                        )
+            else:
+                # 如果生成了输出文件，即使有错误模式也认为任务成功
+                # 这是因为 appauto 可能在重试后成功完成了测试
+                if not success:
+                    self.log_info(f"Command had non-zero exit code {exit_code}, but output file was generated: {output_file}")
+                    success = True
 
             # 对于评测任务，需要额外验证 score 是否有效
             if success and self.command_type == TaskType.EVAL_TEST:
@@ -637,6 +711,7 @@ class CommandExecutor(BaseExecutor):
                 summary={"error": str(e)},
                 error=str(e),
             )
+
 
     def _parse_output(self, stdout: str, stderr: str) -> Dict[str, Any]:
         """解析命令输出

@@ -35,6 +35,7 @@ class TaskScheduler:
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._lock = threading.Lock()
         self._futures: Dict[int, Future] = {}
+        self._executors: Dict[int, Any] = {}  # 保存 task_id 到 executor 的映射，用于取消操作
         self._task_service = TaskService()
         self._result_storage = ResultStorage()
         self._started = False
@@ -118,13 +119,27 @@ class TaskScheduler:
                 elif task_type != TaskType.PERF_TEST_API and appauto_xlsx:
                     # 使用 appauto 生成的 xlsx 文件
                     from pathlib import Path
-                    original_file = Path.cwd() / appauto_xlsx
+                    import shutil
+
+                    # appauto 生成的文件在 repo 目录下，不在平台的当前工作目录
+                    # 需要使用 venv_manager 获取正确的 repo 路径
+                    appauto_branch = payload.get("appauto_branch", "main")
+                    venv_manager = get_venv_manager()
+                    repo_path = venv_manager.get_repo_path(appauto_branch)
+                    original_file = repo_path / appauto_xlsx
+
                     if original_file.exists():
                         # 重命名文件并移动到 results/ 目录
                         # 在原文件名前加上 display_id 前缀，保留 appauto 生成的 UUID 和时间戳
                         new_filename = f"{display_id}_{original_file.name}"
                         target_file = RESULTS_DIR / new_filename
-                        original_file.rename(target_file)
+
+                        # 如果目标文件已存在，先删除
+                        if target_file.exists():
+                            target_file.unlink()
+
+                        # 移动文件
+                        shutil.move(str(original_file), str(target_file))
                         file_path = str(target_file)
 
                         # 直接使用重命名后的文件
@@ -147,22 +162,79 @@ class TaskScheduler:
                             summary=summary,
                         )
                 else:
-                    # Python API 方式或没有找到 appauto 生成的文件，使用原有逻辑
-                    file_path = self._result_storage.persist_result(
-                        task_id=display_id,
-                        parameters=payload,
-                        summary=summary,
-                        request_rows=result.get("requests", []),
-                    )
-                    self._task_service.mark_completed(
-                        task_id=task_id,
-                        result_path=file_path,
-                        summary=summary,
-                    )
+                    # Python API 方式：首先检查是否有 appauto 生成的文件
+                    if output_file:
+                        # 有 appauto 生成的文件，尝试移动到 results 目录
+                        from pathlib import Path
+                        import shutil
+
+                        # output_file 可能是绝对路径或相对路径
+                        original_file = Path(output_file)
+                        if not original_file.is_absolute():
+                            # 相对路径的话，需要相对于 appauto repo 目录
+                            # 获取 appauto 分支信息
+                            appauto_branch = payload.get("appauto_branch", "main")
+                            venv_manager = get_venv_manager()
+                            repo_path = venv_manager.get_repo_path(appauto_branch)
+                            original_file = repo_path / output_file
+
+                        if original_file.exists():
+                            # 移动文件到 results 目录，使用和命令行任务相同的命名格式
+                            new_filename = f"{display_id}_{original_file.name}"
+                            target_file = RESULTS_DIR / new_filename
+
+                            # 如果目标文件已存在，先删除
+                            if target_file.exists():
+                                target_file.unlink()
+
+                            # 移动文件
+                            shutil.move(str(original_file), str(target_file))
+                            file_path = str(target_file)
+
+                            self._task_service.mark_completed(
+                                task_id=task_id,
+                                result_path=file_path,
+                                summary=summary,
+                            )
+                        else:
+                            # 文件不存在，回退到生成新文件
+                            file_path = self._result_storage.persist_result(
+                                task_id=display_id,
+                                parameters=payload,
+                                summary=summary,
+                                request_rows=result.get("requests", []),
+                            )
+                            self._task_service.mark_completed(
+                                task_id=task_id,
+                                result_path=file_path,
+                                summary=summary,
+                            )
+                    else:
+                        # 没有 appauto 生成的文件，使用原有逻辑生成新文件
+                        file_path = self._result_storage.persist_result(
+                            task_id=display_id,
+                            parameters=payload,
+                            summary=summary,
+                            request_rows=result.get("requests", []),
+                        )
+                        self._task_service.mark_completed(
+                            task_id=task_id,
+                            result_path=file_path,
+                            summary=summary,
+                        )
             else:
                 error_message = result.get("error", "unknown-error")
-                self._task_service.mark_failed(task_id, error_message)
+                # 检查是否是取消导致的失败
+                if error_message == "task_cancelled":
+                    self._task_service.mark_cancelled(task_id)
+                else:
+                    self._task_service.mark_failed(task_id, error_message)
         except Exception as exc:  # pragma: no cover
+            # 检查任务是否已被取消 - 不要覆盖 cancelled 状态
+            task_record = self._task_service.get_task(task_id)
+            if task_record and task_record.status == "cancelled":
+                # 任务已被取消，不标记为失败
+                return
             self._task_service.mark_failed(task_id, str(exc))
 
     def _run_hardware_info_task(
@@ -242,27 +314,27 @@ class TaskScheduler:
         """
         # 获取 appauto 分支信息并确保对应的虚拟环境存在
         appauto_branch = payload.get("appauto_branch", "main")
-        appauto_path = payload.get("appauto_path")
 
-        if not appauto_path:
-            # 如果没有指定路径，使用 VenvManager 获取分支特定的 appauto
-            venv_manager = get_venv_manager()
-            appauto_bin_path = venv_manager.ensure_venv(appauto_branch)
-            if appauto_bin_path:
-                appauto_path = str(appauto_bin_path)
-            else:
-                raise RuntimeError(
-                    f"Failed to create or find venv for appauto branch '{appauto_branch}'. "
-                    f"Please check the appauto source path and git branch."
-                )
+        # 使用 VenvManager 确保环境存在
+        venv_manager = get_venv_manager()
+        appauto_bin_path = venv_manager.ensure_environment(appauto_branch)
+        if not appauto_bin_path:
+            raise RuntimeError(
+                f"Failed to create or find environment for appauto branch '{appauto_branch}'. "
+                f"Please check the appauto source path and git branch."
+            )
 
         # 创建命令行执行器
         executor = CommandExecutor(
             task_id=task_id,
             command_type=task_type,
-            appauto_path=appauto_path,
+            appauto_branch=appauto_branch,
             timeout=payload.get("timeout", 3600),
         )
+
+        # 保存 executor 引用，以便在取消时使用
+        with self._lock:
+            self._executors[task_id] = executor
 
         # 在新的事件循环中执行异步任务
         loop = asyncio.new_event_loop()
@@ -273,10 +345,14 @@ class TaskScheduler:
             return result.to_dict()
         finally:
             loop.close()
+            # 清理 executor 引用
+            with self._lock:
+                self._executors.pop(task_id, None)
 
     def _cleanup(self, task_id: int) -> None:
         with self._lock:
             self._futures.pop(task_id, None)
+            self._executors.pop(task_id, None)
 
     def get_future(self, task_id: int) -> Optional[Future]:
         with self._lock:
@@ -291,15 +367,35 @@ class TaskScheduler:
         Returns:
             bool: 是否成功取消任务
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[Scheduler] cancel_task called for task {task_id}")
+
         with self._lock:
             future = self._futures.get(task_id)
+            executor = self._executors.get(task_id)
+
+            logger.info(f"[Scheduler] Task {task_id}: future={'exists' if future else 'none'}, executor={'exists' if executor else 'none'}")
+
+            # 如果任务正在运行，尝试终止执行器中的进程
+            if executor:
+                logger.info(f"[Scheduler] Task {task_id}: Calling executor.cancel()")
+                executor.cancel()
+                logger.info(f"[Scheduler] Task {task_id}: executor.cancel() returned")
+
+            # 尝试取消 Future（只有未开始执行的任务能成功取消）
+            cancelled = False
             if future and not future.done():
-                # 尝试取消 Future
                 cancelled = future.cancel()
-                if cancelled:
-                    # 标记任务为已取消状态
-                    self._task_service.mark_cancelled(task_id)
-                return cancelled
+                logger.info(f"[Scheduler] Task {task_id}: future.cancel() = {cancelled}")
+
+            # 如果 executor 存在（任务正在运行）或 Future 被成功取消，都标记为已取消
+            if executor or cancelled:
+                self._task_service.mark_cancelled(task_id)
+                logger.info(f"[Scheduler] Task {task_id}: Marked as cancelled")
+                return True
+
+            logger.info(f"[Scheduler] Task {task_id}: Could not cancel (no executor and future already done)")
             return False
 
 
