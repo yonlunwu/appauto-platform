@@ -1,0 +1,43 @@
+# Backup files
+*.backup
+*.backup2
+*.backup_*
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Test results
+results/
+task_logs/
+reports/
+
+# Test data
+test_data.ini
+
+# OS
+.DS_Store
+Thumbs.db
