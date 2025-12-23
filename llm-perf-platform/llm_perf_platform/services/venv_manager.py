@@ -10,13 +10,14 @@ New architecture:
 - No shared source code or dependencies
 """
 import logging
+from llm_perf_platform.utils.logging_config import get_logger
 import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Base directory for all independent appauto repositories
 # Changed from 'venvs' to 'appauto-repos' to reflect the new architecture

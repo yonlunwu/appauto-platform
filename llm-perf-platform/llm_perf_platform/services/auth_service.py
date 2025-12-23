@@ -8,6 +8,7 @@ from sqlmodel import select
 
 from llm_perf_platform.models.db import get_session
 from llm_perf_platform.models.user_account import SessionToken, UserAccount
+from llm_perf_platform.utils.logging_config import get_logger
 
 
 class AuthService:
@@ -90,8 +91,7 @@ class AuthService:
                 )
                 session.add(admin)
                 session.commit()
-                import logging
-                logger = logging.getLogger(__name__)
+                logger = get_logger(__name__)
                 logger.info(f"Default admin user created: {email}")
 
     def reset_user_password(self, user_id: int, new_password: str) -> UserAccount:

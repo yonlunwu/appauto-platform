@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from llm_perf_platform.api.auth import get_current_user
 from llm_perf_platform.models.user_account import UserAccount
 from llm_perf_platform.services.task_service import TaskService
+from llm_perf_platform.utils.logging_config import get_logger
 
 
 router = APIRouter(prefix="/system")
@@ -59,9 +60,8 @@ def get_appauto_versions(current_user: UserAccount = Depends(get_admin_user)):
     """
     from llm_perf_platform.services.venv_manager import get_venv_manager
     import subprocess
-    import logging
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
     venv_manager = get_venv_manager()
 
     versions = []

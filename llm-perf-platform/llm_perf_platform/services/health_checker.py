@@ -1,6 +1,7 @@
 """后台健康检查服务 - 定期检查模型实例健康状态"""
 import asyncio
 import logging
+from llm_perf_platform.utils.logging_config import get_logger
 from typing import Optional
 
 from sqlmodel import select
@@ -10,7 +11,7 @@ from llm_perf_platform.models.model_instance import ModelInstance, ModelStatus
 from llm_perf_platform.executor.model_lifecycle import ModelLifecycleManager
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HealthCheckService:

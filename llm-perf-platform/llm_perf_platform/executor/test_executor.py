@@ -15,6 +15,7 @@
 """
 import asyncio
 import logging
+from llm_perf_platform.utils.logging_config import get_logger
 import sys
 import subprocess
 from typing import Dict, Any, Optional
@@ -26,7 +27,7 @@ from llm_perf_platform.executor.base_executor import (
 )
 from llm_perf_platform.services.venv_manager import get_venv_manager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # appauto 导入
 try:

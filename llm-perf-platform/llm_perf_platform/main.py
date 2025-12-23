@@ -1,8 +1,6 @@
 import asyncio
-import logging
 import os
 from pathlib import Path
-from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,35 +14,12 @@ from llm_perf_platform.services.health_checker import (
 )
 from llm_perf_platform.middleware import RequestLoggingMiddleware
 
-# Configure logging
-# 创建日志目录
-LOG_DIR = Path(os.getenv("LLM_PERF_LOG_DIR", Path(__file__).resolve().parents[2] / "logs"))
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+# Configure logging using centralized config
+from llm_perf_platform.utils.logging_config import setup_logging, get_logger, LOG_DIR
 
-# 配置日志格式
-log_format = '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s'
-date_format = '%Y-%m-%d %H:%M:%S'
-
-# 配置根日志记录器
-logging.basicConfig(
-    level=logging.INFO,
-    format=log_format,
-    datefmt=date_format,
-    force=True,  # Force reconfiguration even if logging is already configured
-    handlers=[
-        # 控制台输出
-        logging.StreamHandler(),
-        # 文件输出（自动轮转，最多保留 10 个文件，每个最大 10MB）
-        RotatingFileHandler(
-            LOG_DIR / "llm_perf_platform.log",
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=10,
-            encoding="utf-8",
-        ),
-    ],
-)
-
-logger = logging.getLogger(__name__)
+# Initialize logging system
+setup_logging(log_level="INFO")
+logger = get_logger(__name__)
 
 
 def create_app() -> FastAPI:

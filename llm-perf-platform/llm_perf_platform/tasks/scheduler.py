@@ -12,6 +12,7 @@ from llm_perf_platform.services.task_service import TaskService
 from llm_perf_platform.services.venv_manager import get_venv_manager
 from llm_perf_platform.storage.results import ResultStorage, RESULTS_DIR
 
+from llm_perf_platform.utils.logging_config import get_logger
 
 class TaskScheduler:
     """任务调度器 - 支持多种执行方式
@@ -367,8 +368,7 @@ class TaskScheduler:
         Returns:
             bool: 是否成功取消任务
         """
-        import logging
-        logger = logging.getLogger(__name__)
+        logger = get_logger(__name__)
         logger.info(f"[Scheduler] cancel_task called for task {task_id}")
 
         with self._lock:

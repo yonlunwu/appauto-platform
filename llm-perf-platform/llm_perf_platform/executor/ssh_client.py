@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from llm_perf_platform.utils.logging_config import get_logger
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -7,7 +8,7 @@ import asyncssh
 from asyncssh import SSHClientConnection
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SSHClient:

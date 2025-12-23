@@ -1,5 +1,6 @@
 """模型管理 API - 远程模型扫描、验证和生命周期管理"""
 import logging
+from llm_perf_platform.utils.logging_config import get_logger
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -25,7 +26,7 @@ from llm_perf_platform.executor.model_lifecycle import ModelLifecycleManager
 from llm_perf_platform.models.db import get_session
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter(prefix="/models", tags=["models"])
 
 

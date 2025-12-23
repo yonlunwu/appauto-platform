@@ -1,5 +1,6 @@
 """远程模型扫描器 - 扫描远程服务器上的可用模型"""
 import logging
+from llm_perf_platform.utils.logging_config import get_logger
 from typing import List, Dict, Optional
 from pathlib import Path
 import os
@@ -16,7 +17,7 @@ except ImportError:
     BaseModelConfig = None
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ========== 数据类定义 ==========

@@ -9,6 +9,7 @@
     2. FT 容器测试：在 zhiwen-ft 容器内启动模型
 """
 import logging
+from llm_perf_platform.utils.logging_config import get_logger
 from typing import Optional, Dict, Any
 from datetime import datetime
 
@@ -33,7 +34,7 @@ except ImportError as e:
     BaseModelConfig = None
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ModelLifecycleManager:
