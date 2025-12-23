@@ -71,6 +71,19 @@ class VenvManager:
         repo_path = self.get_repo_path(branch)
         return repo_path / ".venv" / "bin" / "appauto"
 
+
+    def get_activation_script(self, branch: str) -> Path:
+        """Get the activation script path for a specific branch's virtual environment.
+
+        Args:
+            branch: Git branch name
+
+        Returns:
+            Path to the activation script
+        """
+        repo_path = self.get_repo_path(branch)
+        return repo_path / ".venv" / "bin" / "activate"
+
     def repo_exists(self, branch: str) -> bool:
         """Check if repository exists for a branch and is on the correct branch.
 

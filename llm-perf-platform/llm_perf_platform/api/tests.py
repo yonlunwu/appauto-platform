@@ -72,6 +72,7 @@ def run_test(request: TestRunRequest, current_user = Depends(get_current_user)):
         ssh_config=ssh_config_dict,
         user_id=current_user.id,
         appauto_branch=request.appauto_branch,
+        task_type=parameters.get("task_type", "perf_test"),
     )
 
     payload = {
@@ -358,6 +359,8 @@ def retry_task(task_id: int, current_user = Depends(get_current_user)):
         status="queued",
         ssh_config=original_task.ssh_config,
         user_id=current_user.id,
+        task_type=original_task.task_type,
+        appauto_branch=parameters.get("appauto_branch", "main"),
     )
 
     # 构建 payload 并提交到调度器
@@ -549,6 +552,7 @@ def _run_perf_test(
         ssh_config=ssh_config,
         user_id=current_user.id,
         appauto_branch=request.appauto_branch,
+        task_type="perf_test",
     )
 
     # 构建调度器 payload

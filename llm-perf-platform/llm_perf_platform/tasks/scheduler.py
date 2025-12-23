@@ -317,7 +317,7 @@ class TaskScheduler:
 
         # 使用 VenvManager 确保环境存在
         venv_manager = get_venv_manager()
-        appauto_bin_path = venv_manager.ensure_environment(appauto_branch)
+        appauto_bin_path = venv_manager.ensure_repo(appauto_branch)
         if not appauto_bin_path:
             raise RuntimeError(
                 f"Failed to create or find environment for appauto branch '{appauto_branch}'. "

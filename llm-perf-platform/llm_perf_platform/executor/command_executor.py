@@ -645,8 +645,16 @@ class CommandExecutor(BaseExecutor):
 
             combined_output = stdout_str + "\n" + stderr_str
 
-            # 只有在没有生成输出文件时，才检查错误模式
-            if not output_file:
+            # 检查是否有有效的评测结果或输出文件
+            # 对于评测任务，如果有有效的score，认为任务成功
+            has_valid_score = (
+                self.command_type == TaskType.EVAL_TEST and
+                "score" in summary and
+                summary["score"] is not None
+            )
+            
+            # 只有在没有生成输出文件且没有有效评测结果时，才检查错误模式
+            if not output_file and not has_valid_score:
                 for pattern, error_desc in error_patterns:
                     if pattern in combined_output:
                         success = False
