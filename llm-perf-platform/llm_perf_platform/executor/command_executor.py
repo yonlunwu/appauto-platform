@@ -643,6 +643,13 @@ class CommandExecutor(BaseExecutor):
                 ("eval finished. score: \n", "Evaluation completed but no score obtained"),
             ]
 
+            # 致命错误模式（即使有输出文件也认为失败）
+            critical_error_patterns = [
+                ("FileNotFoundError", "File not found error"),
+                (" test failed:", "Test execution failed"),
+                ("raise ", "Python exception occurred"),
+            ]
+
             combined_output = stdout_str + "\n" + stderr_str
 
             # 检查是否有有效的评测结果或输出文件
@@ -669,7 +676,23 @@ class CommandExecutor(BaseExecutor):
                             exit_code=exit_code,
                         )
             else:
-                # 如果生成了输出文件，即使有错误模式也认为任务成功
+                # 检查是否有致命错误（即使有输出文件也应该失败）
+                has_critical_error = False
+                for pattern, error_desc in critical_error_patterns:
+                    if pattern in stderr_str:
+                        has_critical_error = True
+                        error_msg = f"{error_desc} (detected: {pattern})"
+                        self.log_error(error_msg)
+                        return ExecutionResult(
+                            success=False,
+                            summary=summary,
+                            error=error_msg,
+                            stdout=stdout_str,
+                            stderr=stderr_str,
+                            exit_code=exit_code,
+                        )
+                
+                # 如果生成了输出文件且没有致命错误，认为任务成功
                 # 这是因为 appauto 可能在重试后成功完成了测试
                 if not success:
                     self.log_info(f"Command had non-zero exit code {exit_code}, but output file was generated: {output_file}")
