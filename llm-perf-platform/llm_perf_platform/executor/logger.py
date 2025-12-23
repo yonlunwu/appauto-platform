@@ -3,9 +3,14 @@ import datetime
 import os
 from pathlib import Path
 
-DEFAULT_BASE_DIR = Path(__file__).resolve().parents[2]
-BASE_DIR = Path(os.getenv("LLM_PERF_BASE_DIR", DEFAULT_BASE_DIR))
-LOG_DIR = Path(os.getenv("LLM_PERF_LOG_DIR", BASE_DIR / "task_logs"))
+# 使用统一的日志配置
+try:
+    from llm_perf_platform.utils.logging_config import TASKS_LOG_DIR
+    LOG_DIR = TASKS_LOG_DIR
+except ImportError:
+    # 降级方案
+    DEFAULT_BASE_DIR = Path(__file__).resolve().parents[3] / "logs" / "tasks"
+    LOG_DIR = Path(os.getenv("LLM_PERF_TASK_LOG_DIR", DEFAULT_BASE_DIR))
 
 
 class TaskLogger:
@@ -43,4 +48,3 @@ class TaskLogger:
 
     def debug(self, msg: str) -> None:
         self._write("DEBUG", msg)
-

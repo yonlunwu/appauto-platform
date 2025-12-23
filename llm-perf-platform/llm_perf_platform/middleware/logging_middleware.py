@@ -17,10 +17,10 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from llm_perf_platform.utils.logging_config import get_logger, setup_request_logging
+from llm_perf_platform.utils.logging_config import get_logger, setup_access_logging
 
 # 使用请求专用logger
-request_logger = setup_request_logging()
+access_logger = setup_access_logging()
 # 保留应用logger用于错误日志
 logger = get_logger(__name__)
 

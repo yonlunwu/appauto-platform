@@ -1,5 +1,14 @@
 """
 统一的日志配置模块
+
+日志目录结构：
+/logs/
+├── platform/      # 平台应用日志
+│   ├── app.log       # 应用主日志
+│   ├── error.log     # 错误日志
+│   └── access.log    # HTTP访问日志
+├── tasks/         # 任务执行日志  
+├── maintenance/   # 维护脚本日志
 """
 import logging
 import os
@@ -8,9 +17,18 @@ from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
-DEFAULT_LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
+# 统一使用项目顶层的 logs 目录
+DEFAULT_LOG_DIR = Path(__file__).resolve().parents[3] / "logs"
 LOG_DIR = Path(os.getenv("LLM_PERF_LOG_DIR", DEFAULT_LOG_DIR))
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+# 子目录
+PLATFORM_LOG_DIR = LOG_DIR / "platform"
+TASKS_LOG_DIR = LOG_DIR / "tasks"
+MAINTENANCE_LOG_DIR = LOG_DIR / "maintenance"
+
+# 确保所有目录存在
+for d in [PLATFORM_LOG_DIR, TASKS_LOG_DIR, MAINTENANCE_LOG_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
 
 DETAILED_FORMAT = (
     "%(asctime)s | "
@@ -38,7 +56,8 @@ def setup_logging(
     enable_console: bool = True,
     enable_file: bool = True,
 ) -> None:
-    log_directory = log_dir or LOG_DIR
+    """配置应用程序的日志系统"""
+    log_directory = log_dir or PLATFORM_LOG_DIR
     log_directory.mkdir(parents=True, exist_ok=True)
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
     root_logger = logging.getLogger()
@@ -53,8 +72,9 @@ def setup_logging(
         console_handler.setFormatter(console_formatter)
         handlers.append(console_handler)
     if enable_file:
+        # 应用主日志
         app_handler = RotatingFileHandler(
-            log_directory / "application.log",
+            log_directory / "app.log",
             maxBytes=50 * 1024 * 1024,
             backupCount=10,
             encoding="utf-8",
@@ -63,6 +83,7 @@ def setup_logging(
         app_formatter = logging.Formatter(DETAILED_FORMAT, DATE_FORMAT)
         app_handler.setFormatter(app_formatter)
         handlers.append(app_handler)
+        # 错误日志
         error_handler = RotatingFileHandler(
             log_directory / "error.log",
             maxBytes=20 * 1024 * 1024,
@@ -84,39 +105,33 @@ def setup_logging(
     logger.info(f"Logging initialized: dir={log_directory}, level={log_level}")
 
 def get_logger(name: str) -> logging.Logger:
+    """获取指定名称的logger"""
     return logging.getLogger(name)
 
-def setup_request_logging(log_dir: Optional[Path] = None) -> logging.Logger:
-    log_directory = log_dir or LOG_DIR
-    request_logger = logging.getLogger("llm_perf_platform.request")
-    request_logger.setLevel(logging.INFO)
-    request_logger.propagate = False
-    request_handler = TimedRotatingFileHandler(
-        log_directory / "request.log",
+def setup_access_logging(log_dir: Optional[Path] = None) -> logging.Logger:
+    """配置HTTP访问日志"""
+    log_directory = log_dir or PLATFORM_LOG_DIR
+    access_logger = logging.getLogger("llm_perf_platform.access")
+    access_logger.setLevel(logging.INFO)
+    access_logger.propagate = False
+    access_handler = TimedRotatingFileHandler(
+        log_directory / "access.log",
         when="midnight",
         interval=1,
         backupCount=30,
         encoding="utf-8",
     )
-    request_formatter = logging.Formatter(DETAILED_FORMAT, DATE_FORMAT)
-    request_handler.setFormatter(request_formatter)
-    request_logger.addHandler(request_handler)
-    return request_logger
+    access_formatter = logging.Formatter(DETAILED_FORMAT, DATE_FORMAT)
+    access_handler.setFormatter(access_formatter)
+    access_logger.addHandler(access_handler)
+    return access_logger
 
-def setup_task_logging(log_dir: Optional[Path] = None) -> logging.Logger:
-    log_directory = log_dir or LOG_DIR
-    task_logger = logging.getLogger("llm_perf_platform.task")
-    task_logger.setLevel(logging.INFO)
-    task_logger.propagate = False
-    task_handler = RotatingFileHandler(
-        log_directory / "task.log",
-        maxBytes=50 * 1024 * 1024,
-        backupCount=10,
-        encoding="utf-8",
-    )
-    task_formatter = logging.Formatter(DETAILED_FORMAT, DATE_FORMAT)
-    task_handler.setFormatter(task_formatter)
-    task_logger.addHandler(task_handler)
-    return task_logger
-
-__all__ = ["setup_logging", "get_logger", "setup_request_logging", "setup_task_logging", "LOG_DIR"]
+__all__ = [
+    "setup_logging",
+    "get_logger",
+    "setup_access_logging",
+    "LOG_DIR",
+    "PLATFORM_LOG_DIR",
+    "TASKS_LOG_DIR",
+    "MAINTENANCE_LOG_DIR",
+]

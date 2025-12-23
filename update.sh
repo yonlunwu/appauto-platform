@@ -31,7 +31,7 @@ UPDATE_FRONTEND=true
 CHECK_ONLY=false
 
 # Logging
-LOG_FILE="$INSTALL_DIR/logs/update.log"
+LOG_FILE="$INSTALL_DIR/logs/maintenance/update.log"
 mkdir -p "$INSTALL_DIR/logs"
 
 log() {
