@@ -115,10 +115,14 @@ class BaseExecutor(ABC):
     def log_info(self, message: str) -> None:
         """记录信息日志"""
         self.logger.info(message)
-
+        
     def log_error(self, message: str) -> None:
         """记录错误日志"""
         self.logger.error(message)
+        
+    def log_warning(self, message: str) -> None:
+        """记录警告日志"""
+        self.logger.warning(message)
 
     def log_debug(self, message: str) -> None:
         """记录调试日志"""

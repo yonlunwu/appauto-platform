@@ -46,5 +46,8 @@ class TaskLogger:
     def error(self, msg: str) -> None:
         self._write("ERROR", msg)
 
+    def warning(self, msg: str) -> None:
+        self._write("WARNING", msg)
+
     def debug(self, msg: str) -> None:
         self._write("DEBUG", msg)
