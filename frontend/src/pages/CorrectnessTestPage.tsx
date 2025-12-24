@@ -336,6 +336,18 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
               </label>
 
               <label>
+                测试超时时间（小时）
+                <input
+                  type="number"
+                  step="0.5"
+                  value={form.timeout_hours === undefined ? "" : form.timeout_hours}
+                  onChange={(e) => updateForm("timeout_hours", e.target.value === "" ? undefined : parseFloat(e.target.value))}
+                  placeholder="默认: 4h"
+                />
+                <small style={{ color: "#666" }}>测试超时时间，超时后任务会被标记为失败</small>
+              </label>
+
+              <label>
                 限制题数
                 <input
                   type="number"
@@ -478,6 +490,7 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                       debug: form.debug || false,
                       keep_model: true,
                       appauto_branch: form.appauto_branch || "main",
+                      timeout_hours: form.timeout_hours,
                     };
 
                     const response = await runEvalTest(payload);
@@ -809,6 +822,18 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
               </label>
 
               <label>
+                测试超时时间（小时）
+                <input
+                  type="number"
+                  step="0.5"
+                  value={form.timeout_hours === undefined ? "" : form.timeout_hours}
+                  onChange={(e) => updateForm("timeout_hours", e.target.value === "" ? undefined : parseFloat(e.target.value))}
+                  placeholder="默认: 4h"
+                />
+                <small style={{ color: "#666" }}>测试超时时间，超时后任务会被标记为失败</small>
+              </label>
+
+              <label>
                 限制题数
                 <input
                   type="number"
@@ -929,6 +954,7 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                       keep_model: form.keep_model || false,
                       debug: form.debug || false,
                       appauto_branch: form.appauto_branch || "main",
+                      timeout_hours: form.timeout_hours,
                     };
 
                     const response = await runEvalTest(payload);

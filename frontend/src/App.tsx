@@ -98,6 +98,16 @@ const DEFAULT_FORM: TestRunForm = {
   request_number: "1 4",
   tokenizer_path: "",
   debug: false,
+  timeout_minutes: 30,
+
+  // 正确性测试配置 (EvalScope)
+  dataset: "",
+  max_tokens: 35000,
+  eval_concurrency: 2,
+  temperature: 0.6,
+  enable_thinking: true,
+  keep_model: true,
+  timeout_hours: 4,
 };
 
 function App() {

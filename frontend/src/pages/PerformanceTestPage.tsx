@@ -420,6 +420,18 @@ export function PerformanceTestPage({
                       }}
                     />
                   </label>
+
+                  <label>
+                    测试超时时间（分钟）
+                    <input
+                      type="number"
+                      step="1"
+                      value={form.timeout_minutes === undefined ? "" : form.timeout_minutes}
+                      onChange={(e) => updateForm("timeout_minutes", e.target.value === "" ? undefined : parseFloat(e.target.value))}
+                      placeholder="默认: 30mins"
+                    />
+                    <small style={{ color: "#666" }}>测试超时时间，超时后任务会被标记为失败</small>
+                  </label>
                 </div>
 
                 {/* 模型配置 */}
@@ -740,6 +752,18 @@ export function PerformanceTestPage({
                       }}
                     />
                   </label>
+
+                  <label>
+                    测试超时时间（分钟）
+                    <input
+                      type="number"
+                      step="1"
+                      value={form.timeout_minutes === undefined ? "" : form.timeout_minutes}
+                      onChange={(e) => updateForm("timeout_minutes", e.target.value === "" ? undefined : parseFloat(e.target.value))}
+                      placeholder="默认: 30mins"
+                    />
+                    <small style={{ color: "#666" }}>测试超时时间，超时后任务会被标记为失败</small>
+                  </label>
                 </div>
 
                 {/* 模型配置 */}
@@ -867,6 +891,7 @@ export function PerformanceTestPage({
                       keep_model: true,
                       tp: form.model_tp || 1,
                       appauto_branch: form.appauto_branch || "main",
+                      timeout_minutes: form.timeout_minutes,
                     };
 
                     const response = await runPerfTest(payload);
@@ -1370,6 +1395,18 @@ export function PerformanceTestPage({
                   }}
                 />
               </label>
+
+              <label>
+                测试超时时间（分钟）
+                <input
+                  type="number"
+                  step="1"
+                  value={form.timeout_minutes === undefined ? "" : form.timeout_minutes}
+                  onChange={(e) => updateForm("timeout_minutes", e.target.value === "" ? undefined : parseFloat(e.target.value))}
+                  placeholder="默认: 30mins"
+                />
+                <small style={{ color: "#666" }}>测试超时时间，超时后任务会被标记为失败</small>
+              </label>
             </div>
 
             {/* 测试选项 */}
@@ -1387,10 +1424,10 @@ export function PerformanceTestPage({
               <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexDirection: "row" }}>
                 <input
                   type="checkbox"
-                  checked={form.stop_model_after_test || false}
-                  onChange={(e) => updateForm("stop_model_after_test", e.target.checked)}
+                  checked={form.keep_model || false}
+                  onChange={(e) => updateForm("keep_model", e.target.checked)}
                 />
-                <span>测试完成后停止模型</span>
+                <span>测试后保持模型运行</span>
               </label>
             </div>
 
@@ -1428,9 +1465,10 @@ export function PerformanceTestPage({
                       loop: form.loop || 1,
                       debug: form.debug || false,
                       warmup: form.warmup,
-                      keep_model: !form.stop_model_after_test,
+                      keep_model: form.keep_model || false,
                       tp: form.model_tp || 1,
                       appauto_branch: form.appauto_branch || "main",
+                      timeout_minutes: form.timeout_minutes,
                     };
 
                     // FT 场景需要额外参数

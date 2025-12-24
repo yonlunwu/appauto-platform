@@ -532,6 +532,7 @@ def _run_perf_test(
         "concurrency": suggested_concurrency,
         "tp": request.tp,
         "appauto_branch": request.appauto_branch,
+        "timeout_minutes": request.timeout_minutes,
     }
 
     # 根据场景添加特定参数
@@ -579,6 +580,7 @@ def _run_perf_test(
         "ssh_config": ssh_config,
         "tp": request.tp,
         "appauto_branch": request.appauto_branch,
+        "timeout_minutes": request.timeout_minutes,
     }
 
     # 添加场景特定参数
@@ -966,7 +968,7 @@ def _run_eval_test(
         "ssh_user": request.ssh_user,
         "ssh_password": request.ssh_password,
         "ssh_port": request.ssh_port,
-        
+
         # 评测参数
         "dataset": request.dataset,
         "dataset_args": request.dataset_args,
@@ -976,11 +978,12 @@ def _run_eval_test(
         "temperature": request.temperature,
         "enable_thinking": request.enable_thinking,
         "debug": request.debug,
-        
+
         # 模型启动参数
         "tp": request.tp,
         "keep_model": request.keep_model,
         "appauto_branch": request.appauto_branch,
+        "timeout_hours": request.timeout_hours,
     }
     
     # 根据场景添加特定参数
@@ -1012,7 +1015,7 @@ def _run_eval_test(
         "ssh_password": request.ssh_password,
         "ssh_port": request.ssh_port,
         "ssh_config": ssh_config,
-        
+
         # 评测参数
         "dataset": request.dataset,
         "dataset_args": request.dataset_args,
@@ -1022,11 +1025,12 @@ def _run_eval_test(
         "temperature": request.temperature,
         "enable_thinking": request.enable_thinking,
         "debug": request.debug,
-        
+
         # 模型启动参数
         "tp": request.tp,
         "keep_model": request.keep_model,
         "appauto_branch": request.appauto_branch,
+        "timeout_hours": request.timeout_hours,
     }
     
     # 添加场景特定参数

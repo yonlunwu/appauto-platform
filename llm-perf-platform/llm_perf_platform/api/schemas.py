@@ -74,6 +74,9 @@ class BaseTestPerf(BaseModel):
 
     tp: Literal[1, 2, 4, 8] = 1
 
+    # 测试超时配置
+    timeout_minutes: Optional[float] = Field(default=30.0, gt=0, description="测试超时时间（分钟）")
+
     # Appauto 版本配置
     appauto_branch: str = "main"  # Appauto 分支版本（如 main, v3.3.1）
 
@@ -384,16 +387,17 @@ class BaseTestEval(BaseModel):
     # 评测参数
     dataset: str = Field(default="aime24", description="数据集名称，如 aime24、mmlu、ceval")
     dataset_args: Optional[str] = Field(default=None, description="数据集参数，JSON 格式")
-    max_tokens: Optional[int] = Field(default=None, gt=0, description="最大 token 数")
-    concurrency: int = Field(default=2, gt=0, description="并发度")
+    max_tokens: Optional[int] = Field(default=35000, gt=0, description="最大 token 数")
+    concurrency: Optional[int] = Field(default=2, gt=0, description="并发度")
     limit: Optional[int] = Field(default=None, gt=0, description="限制每个子集只跑前 n 题")
-    temperature: float = Field(default=0.6, ge=0.0, le=2.0, description="温度参数")
-    enable_thinking: bool = Field(default=False, description="是否开启 thinking 模式")
-    debug: bool = Field(default=False, description="是否开启 debug 模式")
+    temperature: Optional[float] = Field(default=0.6, ge=0.0, le=2.0, description="温度参数")
+    enable_thinking: Optional[bool] = Field(default=True, description="是否开启 thinking 模式")
+    debug: Optional[bool] = Field(default=False, description="是否开启 debug 模式")
+    timeout_hours: Optional[float] = Field(default=4.0, gt=0, description="测试超时时间（小时）")
 
     # 模型启动参数（非 skip_launch 时需要）
     tp: Literal[1, 2, 4, 8] = Field(default=1, description="几卡拉起模型")
-    keep_model: bool = Field(default=True, description="是否保持模型拉起状态")
+    keep_model: Optional[bool] = Field(default=True, description="测试完成后是否保持模型运行（默认保持）")
 
     # Appauto 版本配置
     appauto_branch: str = "main"

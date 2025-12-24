@@ -45,6 +45,7 @@ export interface TestRunForm {
   request_number?: number | string;
   tokenizer_path?: string;
   debug?: boolean;
+  timeout_minutes?: number;
 
   // 正确性测试配置 (EvalScope)
   dataset?: string;
@@ -56,6 +57,7 @@ export interface TestRunForm {
   enable_thinking?: boolean;
   keep_model?: boolean;
   launch_timeout?: number;
+  timeout_hours?: number;
 
   // 基础测试配置 (Pytest)
   testpaths?: string;
