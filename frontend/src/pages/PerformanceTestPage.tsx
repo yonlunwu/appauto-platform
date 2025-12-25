@@ -871,6 +871,8 @@ export function PerformanceTestPage({
                   setMessage(null);
                   setError(null);
                   try {
+                    const timeoutMinutes = Number(form.timeout_minutes) || 30; // 转数字，空值/NaN则默认 30
+                    const timeoutSeconds = timeoutMinutes * 60;
                     const payload = {
                       base: form.scenario as "amaas" | "ft",
                       skip_launch: true,
@@ -891,7 +893,7 @@ export function PerformanceTestPage({
                       keep_model: true,
                       tp: form.model_tp || 1,
                       appauto_branch: form.appauto_branch || "main",
-                      timeout_minutes: form.timeout_minutes,
+                      timeout: timeoutSeconds,
                     };
 
                     const response = await runPerfTest(payload);
@@ -1448,6 +1450,8 @@ export function PerformanceTestPage({
                   setMessage(null);
                   setError(null);
                   try {
+                    const timeoutMinutes = Number(form.timeout_minutes) || 30; // 转数字，空值/NaN则默认 30
+                    const timeoutSeconds = timeoutMinutes * 60;
                     const payload: any = {
                       base: form.scenario as "amaas" | "ft",
                       skip_launch: false,
@@ -1468,7 +1472,7 @@ export function PerformanceTestPage({
                       keep_model: form.keep_model || false,
                       tp: form.model_tp || 1,
                       appauto_branch: form.appauto_branch || "main",
-                      timeout_minutes: form.timeout_minutes,
+                      timeout: timeoutSeconds,
                     };
 
                     // FT 场景需要额外参数

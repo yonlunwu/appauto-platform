@@ -983,7 +983,7 @@ def _run_eval_test(
         "tp": request.tp,
         "keep_model": request.keep_model,
         "appauto_branch": request.appauto_branch,
-        "timeout_hours": request.timeout_hours,
+        "timeout": request.timeout,
     }
     
     # 根据场景添加特定参数
@@ -1030,7 +1030,7 @@ def _run_eval_test(
         "tp": request.tp,
         "keep_model": request.keep_model,
         "appauto_branch": request.appauto_branch,
-        "timeout_hours": request.timeout_hours,
+        "timeout": request.timeout,
     }
     
     # 添加场景特定参数

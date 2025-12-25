@@ -471,6 +471,9 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                       return;
                     }
 
+                  const timeoutHours = Number(form.timeout_hours) || 1; // 转数字，空值/NaN则默认1
+                  const timeoutSeconds = timeoutHours * 3600;
+
                     const payload = {
                       base: form.scenario,
                       skip_launch: true,
@@ -490,7 +493,7 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                       debug: form.debug || false,
                       keep_model: true,
                       appauto_branch: form.appauto_branch || "main",
-                      timeout_hours: form.timeout_hours,
+                      timeout: timeoutSeconds,
                     };
 
                     const response = await runEvalTest(payload);
@@ -933,6 +936,9 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                       return;
                     }
 
+                  const timeoutHours = Number(form.timeout_hours) || 1; // 转数字，空值/NaN则默认1
+                  const timeoutSeconds = timeoutHours * 3600;
+
                     const payload = {
                       base: form.scenario,
                       skip_launch: false,
@@ -954,7 +960,7 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                       keep_model: form.keep_model || false,
                       debug: form.debug || false,
                       appauto_branch: form.appauto_branch || "main",
-                      timeout_hours: form.timeout_hours,
+                      timeout: timeoutSeconds,
                     };
 
                     const response = await runEvalTest(payload);

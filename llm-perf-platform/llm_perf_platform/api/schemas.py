@@ -393,7 +393,7 @@ class BaseTestEval(BaseModel):
     temperature: Optional[float] = Field(default=0.6, ge=0.0, le=2.0, description="温度参数")
     enable_thinking: Optional[bool] = Field(default=True, description="是否开启 thinking 模式")
     debug: Optional[bool] = Field(default=False, description="是否开启 debug 模式")
-    timeout_hours: Optional[float] = Field(default=4.0, gt=0, description="测试超时时间（小时）")
+    timeout: Optional[float] = Field(default=4.0, gt=0, description="测试超时时间（小时）")
 
     # 模型启动参数（非 skip_launch 时需要）
     tp: Literal[1, 2, 4, 8] = Field(default=1, description="几卡拉起模型")

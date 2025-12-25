@@ -80,7 +80,7 @@ export function runPerfTest(payload: {
   keep_model?: boolean;
   tp?: number;
   launch_timeout?: number;
-  timeout_minutes?: number;
+  timeout?: number;
 }): Promise<TestRunResponse> {
   const { base, skip_launch } = payload;
   const endpoint = `/tests/run_perf/${base}/${skip_launch ? "skip_launch" : "with_launch"}`;
@@ -113,7 +113,7 @@ export function runEvalTest(payload: {
   keep_model?: boolean;
   launch_timeout?: number;
   appauto_branch?: string;
-  timeout_hours?: number;
+  timeout?: number;
 }): Promise<TestRunResponse> {
   const { base, skip_launch } = payload;
   const endpoint = `/tests/run_eval/${base}/${skip_launch ? "skip_launch" : "with_launch"}`;
