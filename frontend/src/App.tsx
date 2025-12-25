@@ -188,7 +188,12 @@ function App() {
 
   // Pagination state
   const perfPagination = usePagination();
+  const evalPagination = usePagination();
   const [pageSize] = useState(20);
+
+  // 分别存储性能测试和正确性测试任务
+  const [perfTasks, setPerfTasks] = useState<TaskSummary[]>([]);
+  const [evalTasks, setEvalTasks] = useState<TaskSummary[]>([]);
 
   // Apply theme
   useEffect(() => {
@@ -217,13 +222,23 @@ function App() {
     loadAppautoBranches();
   }, [profile]);
 
+  // 性能测试任务轮询
   useEffect(() => {
     if (!profile) return;
-    loadTasks();
-    const timer = setInterval(loadTasks, 5000);
+    loadPerfTasks();
+    const timer = setInterval(loadPerfTasks, 5000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, perfPagination.currentPage]);
+
+  // 正确性测试任务轮询
+  useEffect(() => {
+    if (!profile) return;
+    loadEvalTasks();
+    const timer = setInterval(loadEvalTasks, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, evalPagination.currentPage]);
 
   useEffect(() => {
     if (!profile) return;
@@ -266,20 +281,47 @@ function App() {
     [],
   );
 
-  async function loadTasks() {
+  // 加载性能测试任务（task_type = "perf_test"）
+  async function loadPerfTasks() {
     if (!profile) return;
     try {
+      // 直接从后端按 task_type 过滤获取性能测试任务
       const data = await fetchTasks({
         page: perfPagination.currentPage,
         page_size: pageSize,
-        // 移除 task_type 过滤，加载所有任务（包括 pytest 和 perf_test）
+        task_type: "perf_test",
       });
-      setTasks(data.items);
+
+      setPerfTasks(data.items);
       perfPagination.setTotalTasks(data.total);
       perfPagination.setTotalPages(data.total_pages);
     } catch (err) {
       console.error(err);
     }
+  }
+
+  // 加载正确性测试任务（task_type = "eval_test"）
+  async function loadEvalTasks() {
+    if (!profile) return;
+    try {
+      // 直接从后端按 task_type 过滤获取正确性测试任务
+      const data = await fetchTasks({
+        page: evalPagination.currentPage,
+        page_size: pageSize,
+        task_type: "eval_test",
+      });
+
+      setEvalTasks(data.items);
+      evalPagination.setTotalTasks(data.total);
+      evalPagination.setTotalPages(data.total_pages);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // 兼容性：保留 loadTasks 函数，同时加载两类任务
+  async function loadTasks() {
+    await Promise.all([loadPerfTasks(), loadEvalTasks()]);
   }
 
   async function loadOthersTasks() {
@@ -974,7 +1016,7 @@ function App() {
           setError={setError}
           message={message || ""}
           setMessage={setMessage}
-          tasks={tasks}
+          tasks={[...perfTasks, ...evalTasks]}
           loadTasks={loadTasks}
           profile={profile}
           handlePreview={handlePreview}
@@ -1002,7 +1044,7 @@ function App() {
           setMessage={setMessage}
           error={error}
           setError={setError}
-          loadTasks={loadTasks}
+          loadTasks={loadPerfTasks}
           showPassword={showPassword}
           setShowPassword={setShowPassword}
           scannedModels={scannedModels}
@@ -1012,7 +1054,7 @@ function App() {
           handleScanModels={handleScanModels}
           appautoBranches={appautoBranches}
           loadingBranches={loadingBranches}
-          tasks={tasks}
+          tasks={perfTasks}
           profile={profile}
           handlePreview={handlePreview}
           handleArchive={handleArchive}
@@ -1042,8 +1084,8 @@ function App() {
           setError={setError}
           success={success}
           setSuccess={setSuccess}
-          tasks={tasks}
-          loadTasks={loadTasks}
+          tasks={evalTasks}
+          loadTasks={loadEvalTasks}
           profile={profile}
           handleViewLogs={handleViewLogs}
           handleRetry={handleRetry}
@@ -1052,6 +1094,7 @@ function App() {
           scannedModels={scannedModels}
           scanningModels={scanningModels}
           handleScanModels={handleScanModels}
+          evalPagination={evalPagination}
         />
       )}
 
