@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import Future, ThreadPoolExecutor
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
+
+from pydantic import BaseModel
 
 from llm_perf_platform.executor.base_executor import TaskType
 from llm_perf_platform.executor.test_executor import run_test_sync
@@ -48,7 +50,16 @@ class TaskScheduler:
         self._executor.shutdown(wait=False, cancel_futures=False)
         self._started = False
 
-    def submit(self, task_id: int, payload: Dict[str, Any]) -> Future:
+    def submit(self, task_id: int, payload: Union[BaseModel, Dict[str, Any]]) -> Future:
+        """提交任务到调度器
+
+        Args:
+            task_id: 任务ID
+            payload: 任务参数，可以是 Pydantic 模型或字典（向后兼容）
+
+        Returns:
+            Future: 任务执行的 Future 对象
+        """
         if not self._started:
             self.start()
         future = self._executor.submit(self._run_task, task_id, payload)
@@ -57,18 +68,26 @@ class TaskScheduler:
         future.add_done_callback(lambda _: self._cleanup(task_id))
         return future
 
-    def _run_task(self, task_id: int, payload: Dict[str, Any]) -> None:
+    def _run_task(self, task_id: int, payload: Union[BaseModel, Dict[str, Any]]) -> None:
         """执行单个测试任务
 
         根据任务类型选择执行器，执行测试并记录结果。
 
         Args:
             task_id: 任务ID
-            payload: 任务参数字典，应包含：
+            payload: 任务参数，可以是 Pydantic 模型或字典（向后兼容）
+                应包含：
                 - task_type: 任务类型（可选，默认为 PERF_TEST_API）
                 - 其他根据任务类型所需的参数
         """
         try:
+            # 如果是 Pydantic 模型，转换为字典（向后兼容执行器）
+            # 执行器目前仍然接受字典，后续可以逐步迁移执行器也接受 Pydantic 模型
+            if isinstance(payload, BaseModel):
+                payload_dict = payload.model_dump()
+            else:
+                payload_dict = payload
+
             self._task_service.mark_running(task_id)
 
             # 获取任务记录以获取 display_id（用于文件命名）
@@ -76,7 +95,7 @@ class TaskScheduler:
             display_id = task_record.display_id if task_record and task_record.display_id else task_id
 
             # 获取任务类型，默认使用 Python API 方式（向后兼容）
-            task_type_str = payload.get("task_type", "perf_test_api")
+            task_type_str = payload_dict.get("task_type", "perf_test_api")
             try:
                 task_type = TaskType(task_type_str)
             except ValueError:
@@ -85,16 +104,16 @@ class TaskScheduler:
             # 根据任务类型选择执行器
             if task_type == TaskType.PERF_TEST_API:
                 # 使用 Python API 方式（原有方式，向后兼容）
-                result = run_test_sync(payload)
+                result = run_test_sync(payload_dict)
             elif task_type == TaskType.HARDWARE_INFO:
                 # 使用硬件信息收集执行器
-                result = self._run_hardware_info_task(task_id, payload, display_id)
+                result = self._run_hardware_info_task(task_id, payload_dict, display_id)
             elif task_type == TaskType.SYSTEM_MAINTENANCE:
                 # 使用系统维护执行器
-                result = self._run_system_maintenance_task(task_id, payload, display_id)
+                result = self._run_system_maintenance_task(task_id, payload_dict, display_id)
             else:
                 # 使用命令行方式
-                result = self._run_command_task(task_id, task_type, payload)
+                result = self._run_command_task(task_id, task_type, payload_dict)
 
             # 处理执行结果
             if result.get("success"):
@@ -124,7 +143,7 @@ class TaskScheduler:
 
                     # appauto 生成的文件在 repo 目录下，不在平台的当前工作目录
                     # 需要使用 venv_manager 获取正确的 repo 路径
-                    appauto_branch = payload.get("appauto_branch", "main")
+                    appauto_branch = payload_dict.get("appauto_branch", "main")
                     venv_manager = get_venv_manager()
                     repo_path = venv_manager.get_repo_path(appauto_branch)
                     original_file = repo_path / appauto_xlsx
@@ -153,7 +172,7 @@ class TaskScheduler:
                         # 文件不存在，回退到生成新文件
                         file_path = self._result_storage.persist_result(
                             task_id=display_id,
-                            parameters=payload,
+                            parameters=payload_dict,
                             summary=summary,
                             request_rows=result.get("requests", []),
                         )
@@ -174,7 +193,7 @@ class TaskScheduler:
                         if not original_file.is_absolute():
                             # 相对路径的话，需要相对于 appauto repo 目录
                             # 获取 appauto 分支信息
-                            appauto_branch = payload.get("appauto_branch", "main")
+                            appauto_branch = payload_dict.get("appauto_branch", "main")
                             venv_manager = get_venv_manager()
                             repo_path = venv_manager.get_repo_path(appauto_branch)
                             original_file = repo_path / output_file
@@ -201,7 +220,7 @@ class TaskScheduler:
                             # 文件不存在，回退到生成新文件
                             file_path = self._result_storage.persist_result(
                                 task_id=display_id,
-                                parameters=payload,
+                                parameters=payload_dict,
                                 summary=summary,
                                 request_rows=result.get("requests", []),
                             )
@@ -214,7 +233,7 @@ class TaskScheduler:
                         # 没有 appauto 生成的文件，使用原有逻辑生成新文件
                         file_path = self._result_storage.persist_result(
                             task_id=display_id,
-                            parameters=payload,
+                            parameters=payload_dict,
                             summary=summary,
                             request_rows=result.get("requests", []),
                         )

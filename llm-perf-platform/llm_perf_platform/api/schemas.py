@@ -474,3 +474,226 @@ class DeployResponse(BaseModel):
     uuid: str
     status: str
     message: str
+
+
+# ========== 内部 Payload 模型（用于 Scheduler 和 Executor 之间传递数据）==========
+# 这些模型用于内部数据传递，提供类型安全和运行时验证
+# 与上面的 Request 模型不同，Payload 模型是经过 API 层处理后的内部数据结构
+
+class BasePayload(BaseModel):
+    """所有 Payload 的基类"""
+    task_id: int
+    task_type: str
+
+    class Config:
+        # 允许额外字段以保持向后兼容
+        extra = "allow"
+
+
+class PerfTestPayload(BasePayload):
+    """性能测试 Payload（命令行方式）
+
+    对应 API:
+    - POST /api/tests/run_perf/amaas/skip_launch
+    - POST /api/tests/run_perf/amaas/with_launch
+    - POST /api/tests/run_perf/ft/skip_launch
+    - POST /api/tests/run_perf/ft/with_launch
+
+    数据流: API Request → PerfTestPayload → CommandExecutor
+    """
+    task_type: str = "perf_test_cmd"
+
+    # 场景配置
+    base: Literal["amaas", "ft"]
+    skip_launch: bool
+
+    # 连接参数
+    ip: str
+    port: int
+    ssh_user: str
+    ssh_password: Optional[str] = None
+    ssh_port: int = 22
+    ssh_config: Dict[str, Any]
+
+    # 测试参数
+    model: str
+    parallel: str  # 例如: "1 4 8"
+    number: str    # 例如: "1 4 8"
+    input_length: int
+    output_length: int
+    loop: int = 1
+
+    # 可选参数
+    tokenizer_path: Optional[str] = None
+    debug: bool = False
+    warmup: bool = False
+    keep_model: bool = True
+    tp: int = 1
+    appauto_branch: str = "main"
+    timeout_minutes: float = 30.0
+
+    # AMaaS 场景特定参数
+    amaas_api_port: Optional[int] = None
+    amaas_api_user: Optional[str] = None
+    amaas_api_passwd: Optional[str] = None
+
+    # FT 场景特定参数
+    launch_timeout: Optional[int] = None
+
+
+class EvalTestPayload(BasePayload):
+    """正确性测试 Payload（评测）
+
+    对应 API:
+    - POST /api/tests/run_eval/amaas/skip_launch
+    - POST /api/tests/run_eval/amaas/with_launch
+    - POST /api/tests/run_eval/ft/skip_launch
+    - POST /api/tests/run_eval/ft/with_launch
+
+    数据流: API Request → EvalTestPayload → CommandExecutor
+    """
+    task_type: str = "eval_test"
+
+    # 场景配置
+    base: Literal["amaas", "ft"]
+    skip_launch: bool
+
+    # 连接参数
+    ip: str
+    port: int
+    model: str
+    ssh_user: str
+    ssh_password: Optional[str] = None
+    ssh_port: int = 22
+    ssh_config: Dict[str, Any]
+
+    # 评测参数
+    dataset: str
+    dataset_args: Optional[str] = None
+    max_tokens: int = 35000
+    concurrency: int = 2
+    limit: Optional[int] = None
+    temperature: float = 0.6
+    enable_thinking: bool = True
+    debug: bool = False
+
+    # 模型启动参数
+    tp: int = 1
+    keep_model: bool = True
+    appauto_branch: str = "main"
+    timeout: float = 4.0
+    launch_timeout: Optional[int] = None
+
+
+class PytestPayload(BasePayload):
+    """Pytest 测试 Payload
+
+    对应 API:
+    - POST /api/basic-tests/run
+
+    数据流: API Request → PytestPayload → CommandExecutor
+    """
+    task_type: str = "pytest"
+
+    scenario: Literal["amaas", "ft"]
+    ssh_config: Dict[str, Any]
+    appauto_branch: str = "main"
+
+    # 测试配置
+    testpaths: Optional[str] = None
+    case_level: Optional[str] = None
+    model_priority: Optional[str] = None
+    ft_port: Optional[int] = None
+    need_empty_gpu_count: Optional[int] = None
+    tp: Optional[str] = None
+
+    # 通知配置
+    lark_user: Optional[str] = None
+    topic: Optional[str] = None
+    notify_group: Optional[str] = None
+
+    # 报告配置
+    report_server: Optional[str] = None
+    report_url: Optional[str] = None
+
+    # 额外参数
+    pytest_args: Optional[str] = None
+
+
+class EnvDeployPayload(BasePayload):
+    """环境部署 Payload
+
+    对应 API:
+    - POST /api/tests/deploy/amaas
+    - POST /api/tests/deploy/ft
+
+    数据流: API Request → EnvDeployPayload → CommandExecutor
+    """
+    task_type: str = "env_deploy"
+
+    deploy_type: Literal["amaas", "ft"]
+    ip: str
+    tag: str
+    tar_name: str
+    ssh_user: str = "qujing"
+    ssh_password: str = "qujing@$#21"
+    ssh_port: int = 22
+    user: Optional[str] = None
+    appauto_branch: str = "main"
+
+    # FT 特有参数
+    image: Optional[str] = None
+
+
+class HardwareInfoPayload(BasePayload):
+    """硬件信息收集 Payload
+
+    对应 API:
+    - POST /api/tests/hardware_info/collect
+
+    数据流: API Request → HardwareInfoPayload → HardwareInfoExecutor
+    """
+    task_type: str = "hardware_info"
+
+    ssh_config: Dict[str, Any]
+    timeout: int = 300
+    display_id: Optional[int] = None  # 由调度器添加
+
+
+class LegacyTestPayload(BasePayload):
+    """遗留的 Python API 测试 Payload（向后兼容）
+
+    对应 API:
+    - POST /api/tests/run (旧版 API)
+
+    数据流: API Request → LegacyTestPayload → TestExecutor
+    """
+    task_type: str = "perf_test_api"
+
+    engine: str
+    model: str
+    input_length: int
+    output_length: int
+    concurrency: int
+    loop: int = 1
+    warmup: bool = False
+    execution_mode: Literal["local", "remote"] = "remote"
+    scenario: Literal["amaas", "ft"] = "ft"
+
+    ssh_config: Optional[Dict[str, Any]] = None
+    appauto_branch: str = "main"
+
+    # 模型启动配置
+    auto_launch_model: bool = False
+    model_config_name: Optional[str] = None
+    model_path: Optional[str] = None
+    model_tp: int = 1
+    model_mode: str = "correct"
+    model_port: int = 30000
+    model_host: str = "0.0.0.0"
+    stop_model_after_test: bool = False
+
+    # AMaaS API 配置
+    amaas_api_port: int = 10001
+    amaas_api_user: str = "admin"
+    amaas_api_passwd: str = "123456"

@@ -34,6 +34,12 @@ from llm_perf_platform.api.schemas import (
     TestEvalViaFTSkipLaunch,
     TestEvalViaFTWithLaunch,
     TestEvalResponse,
+    # 导入新的 Payload 模型
+    PerfTestPayload,
+    EvalTestPayload,
+    EnvDeployPayload,
+    HardwareInfoPayload,
+    LegacyTestPayload,
 )
 from llm_perf_platform.executor.base_executor import TaskType
 from llm_perf_platform.executor.logger import LOG_DIR
@@ -75,33 +81,35 @@ def run_test(request: TestRunRequest, current_user = Depends(get_current_user)):
         task_type=parameters.get("task_type", "perf_test"),
     )
 
-    payload = {
-        "task_id": record.id,
-        "engine": request.engine,
-        "model": request.model,
-        "input_length": request.input_length,
-        "output_length": request.output_length,
-        "concurrency": request.concurrency,
-        "loop": request.loop,
-        "warmup": request.warmup,
-        "execution_mode": request.execution_mode,
-        "scenario": request.scenario,
-        "ssh_config": ssh_config_dict,
-        "appauto_branch": request.appauto_branch,
+    # 构建调度器 payload - 使用 Pydantic 模型（旧版 API）
+    payload = LegacyTestPayload(
+        task_id=record.id,
+        task_type="perf_test_api",
+        engine=request.engine,
+        model=request.model,
+        input_length=request.input_length,
+        output_length=request.output_length,
+        concurrency=request.concurrency,
+        loop=request.loop,
+        warmup=request.warmup,
+        execution_mode=request.execution_mode,
+        scenario=request.scenario,
+        ssh_config=ssh_config_dict,
+        appauto_branch=request.appauto_branch,
         # 模型启动配置
-        "auto_launch_model": request.auto_launch_model,
-        "model_config_name": request.model_config_name,
-        "model_path": request.model_path,
-        "model_tp": request.model_tp,
-        "model_mode": request.model_mode,
-        "model_port": request.model_port,
-        "model_host": request.model_host,
-        "stop_model_after_test": request.stop_model_after_test,
+        auto_launch_model=request.auto_launch_model,
+        model_config_name=request.model_config_name,
+        model_path=request.model_path,
+        model_tp=request.model_tp,
+        model_mode=request.model_mode,
+        model_port=request.model_port,
+        model_host=request.model_host,
+        stop_model_after_test=request.stop_model_after_test,
         # AMaaS API 配置
-        "amaas_api_port": request.amaas_api_port,
-        "amaas_api_user": request.amaas_api_user,
-        "amaas_api_passwd": request.amaas_api_passwd,
-    }
+        amaas_api_port=request.amaas_api_port,
+        amaas_api_user=request.amaas_api_user,
+        amaas_api_passwd=request.amaas_api_passwd,
+    )
 
     task_scheduler.submit(record.id, payload)
 
@@ -453,13 +461,13 @@ def collect_hardware_info(request: HardwareInfoCollectRequest, current_user = De
         task_type="hardware_info",
     )
 
-    # 构建调度器 payload
-    payload = {
-        "task_id": record.id,
-        "task_type": "hardware_info",
-        "ssh_config": ssh_config,
-        "timeout": request.timeout,
-    }
+    # 构建调度器 payload - 使用 Pydantic 模型
+    payload = HardwareInfoPayload(
+        task_id=record.id,
+        task_type="hardware_info",
+        ssh_config=ssh_config,
+        timeout=request.timeout,
+    )
 
     # 提交任务到调度器
     task_scheduler.submit(record.id, payload)
@@ -556,10 +564,10 @@ def _run_perf_test(
         task_type="perf_test",
     )
 
-    # 构建调度器 payload
-    payload = {
+    # 构建调度器 payload - 使用 Pydantic 模型
+    payload_dict = {
         "task_id": record.id,
-        "task_type": "perf_test_cmd",  # 使用命令行方式
+        "task_type": "perf_test_cmd",
         "base": base,
         "skip_launch": skip_launch,
         "ip": request.ip,
@@ -586,12 +594,15 @@ def _run_perf_test(
     # 添加场景特定参数
     if not skip_launch:
         if base == "amaas":
-            payload["amaas_api_port"] = 10001
-            payload["amaas_api_user"] = "admin"
-            payload["amaas_api_passwd"] = "123456"
+            payload_dict["amaas_api_port"] = 10001
+            payload_dict["amaas_api_user"] = "admin"
+            payload_dict["amaas_api_passwd"] = "123456"
         elif base == "ft":
-            payload["tp"] = getattr(request, "tp", 1)
-            payload["launch_timeout"] = getattr(request, "launch_timeout", 900)
+            payload_dict["tp"] = getattr(request, "tp", 1)
+            payload_dict["launch_timeout"] = getattr(request, "launch_timeout", 900)
+
+    # 创建 Pydantic Payload 模型（会自动验证）
+    payload = PerfTestPayload(**payload_dict)
 
     # 提交任务到调度器
     task_scheduler.submit(record.id, payload)
@@ -1002,8 +1013,8 @@ def _run_eval_test(
         task_type="eval_test",
     )
     
-    # 构建调度器 payload
-    payload = {
+    # 构建调度器 payload - 使用 Pydantic 模型
+    payload_dict = {
         "task_id": record.id,
         "task_type": "eval_test",
         "base": base,
@@ -1032,11 +1043,14 @@ def _run_eval_test(
         "appauto_branch": request.appauto_branch,
         "timeout": request.timeout,
     }
-    
+
     # 添加场景特定参数
     if not skip_launch:
-        payload["launch_timeout"] = getattr(request, "launch_timeout", 900)
-    
+        payload_dict["launch_timeout"] = getattr(request, "launch_timeout", 900)
+
+    # 创建 Pydantic Payload 模型（会自动验证）
+    payload = EvalTestPayload(**payload_dict)
+
     # 提交任务到调度器
     task_scheduler.submit(record.id, payload)
     
@@ -1140,8 +1154,8 @@ def _run_deploy(
         task_type="env_deploy",
     )
 
-    # 构建调度器 payload
-    payload = {
+    # 构建调度器 payload - 使用 Pydantic 模型
+    payload_dict = {
         "task_id": record.id,
         "task_type": "env_deploy",
         "deploy_type": deploy_type,
@@ -1157,7 +1171,10 @@ def _run_deploy(
 
     # FT 部署需要 image 参数
     if deploy_type == "ft":
-        payload["image"] = request.image
+        payload_dict["image"] = request.image
+
+    # 创建 Pydantic Payload 模型（会自动验证）
+    payload = EnvDeployPayload(**payload_dict)
 
     # 提交任务到调度器
     task_scheduler.submit(record.id, payload)
