@@ -58,6 +58,7 @@ export interface TestRunForm {
   keep_model?: boolean;
   launch_timeout?: number;
   timeout_hours?: number;
+  eval_port?: number;
 
   // 基础测试配置 (Pytest)
   testpaths?: string;

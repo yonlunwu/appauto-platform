@@ -422,12 +422,14 @@ class TestEvalViaFTSkipLaunch(BaseTestEval):
     """FT 场景正确性测试 - 跳过模型启动"""
     base: Literal["ft"] = "ft"
     skip_launch: bool = True
+    port: int = 30000
 
 
 class TestEvalViaFTWithLaunch(BaseTestEval):
     """FT 场景正确性测试 - 自动启动模型"""
     base: Literal["ft"] = "ft"
     skip_launch: bool = False
+    port: int = 30000
     launch_timeout: int = Field(default=900, gt=0, description="模型拉起超时时间（秒）")
 
 

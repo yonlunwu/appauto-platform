@@ -102,7 +102,10 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                     name="eval-scenario-existing"
                     value="ft"
                     checked={form.scenario === "ft"}
-                    onChange={(e) => updateForm("scenario", e.target.value as "ft" | "amaas")}
+                    onChange={(e) => {
+                      updateForm("scenario", e.target.value as "ft" | "amaas");
+                      updateForm("eval_port", undefined);  // 清空端口,使用新场景默认值
+                    }}
                   />
                   <span>基于 FT</span>
                 </label>
@@ -112,7 +115,10 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                     name="eval-scenario-existing"
                     value="amaas"
                     checked={form.scenario === "amaas"}
-                    onChange={(e) => updateForm("scenario", e.target.value as "ft" | "amaas")}
+                    onChange={(e) => {
+                      updateForm("scenario", e.target.value as "ft" | "amaas");
+                      updateForm("eval_port", undefined);  // 清空端口,使用新场景默认值
+                    }}
                   />
                   <span>基于 AMaaS</span>
                 </label>
@@ -169,15 +175,29 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
               </label>
 
               <label>
-                API 端口
+                API 端口 *
                 <input
                   type="number"
-                  value={form.scenario === "amaas" ? 10011 : 30000}
-                  disabled
-                  placeholder={form.scenario === "amaas" ? "10011 (AMaaS)" : "30000 (FT)"}
+                  value={form.eval_port !== undefined ? form.eval_port : (form.scenario === "amaas" ? 10011 : 30000)}
+                  onChange={(e) => {
+                    const value = e.target.value === "" ? undefined : parseInt(e.target.value);
+                    updateForm("eval_port", value);
+                    if (value !== undefined) {
+                      setValidationErrors(prev => {
+                        const next = new Set(prev);
+                        next.delete("eval_port");
+                        return next;
+                      });
+                    }
+                  }}
+                  placeholder={form.scenario === "amaas" ? "默认: 10011" : "默认: 30000"}
+                  required
+                  style={{
+                    borderColor: validationErrors.has("eval_port") ? "#f87171" : undefined,
+                  }}
                 />
                 <small style={{ color: "#666" }}>
-                  {form.scenario === "amaas" ? "AMaaS 默认端口 10011" : "FT 默认端口 30000"}
+                  模型服务端口{form.scenario === "amaas" ? " (AMaaS 默认 10011)" : " (FT 默认 30000)"}
                 </small>
               </label>
             </div>
@@ -483,7 +503,7 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                       base: form.scenario,
                       skip_launch: true,
                       ip: form.amaas_ip || "",
-                      port: form.scenario === "amaas" ? 10011 : 30000,
+                      port: form.eval_port !== undefined ? form.eval_port : (form.scenario === "amaas" ? 10011 : 30000),
                       model: form.model,
                       ssh_user: form.ssh_user || "",
                       ssh_password: form.ssh_password,
@@ -542,7 +562,10 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                     name="eval-scenario-launch"
                     value="ft"
                     checked={form.scenario === "ft"}
-                    onChange={(e) => updateForm("scenario", e.target.value as "ft" | "amaas")}
+                    onChange={(e) => {
+                      updateForm("scenario", e.target.value as "ft" | "amaas");
+                      updateForm("eval_port", undefined);  // 清空端口,使用新场景默认值
+                    }}
                   />
                   <span>基于 FT</span>
                 </label>
@@ -552,7 +575,10 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                     name="eval-scenario-launch"
                     value="amaas"
                     checked={form.scenario === "amaas"}
-                    onChange={(e) => updateForm("scenario", e.target.value as "ft" | "amaas")}
+                    onChange={(e) => {
+                      updateForm("scenario", e.target.value as "ft" | "amaas");
+                      updateForm("eval_port", undefined);  // 清空端口,使用新场景默认值
+                    }}
                   />
                   <span>基于 AMaaS</span>
                 </label>
@@ -607,7 +633,34 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                   required
                 />
               </label>
-            </div>
+            
+              <label>
+                API 端口 *
+                <input
+                  type="number"
+                  value={form.eval_port !== undefined ? form.eval_port : (form.scenario === "amaas" ? 10011 : 30000)}
+                  onChange={(e) => {
+                    const value = e.target.value === "" ? undefined : parseInt(e.target.value);
+                    updateForm("eval_port", value);
+                    if (value !== undefined) {
+                      setValidationErrors(prev => {
+                        const next = new Set(prev);
+                        next.delete("eval_port");
+                        return next;
+                      });
+                    }
+                  }}
+                  placeholder={form.scenario === "amaas" ? "默认: 10011" : "默认: 30000"}
+                  required
+                  style={{
+                    borderColor: validationErrors.has("eval_port") ? "#f87171" : undefined,
+                  }}
+                />
+                <small style={{ color: "#666" }}>
+                  模型服务端口{form.scenario === "amaas" ? " (AMaaS 默认 10011)" : " (FT 默认 30000)"}
+                </small>
+              </label>
+</div>
 
             {/* SSH 配置 */}
             <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>SSH 配置</h3>
@@ -948,7 +1001,7 @@ export const CorrectnessTestPage: React.FC<CorrectnessTestPageProps> = ({
                       base: form.scenario,
                       skip_launch: false,
                       ip: form.amaas_ip || "",
-                      port: form.scenario === "amaas" ? 10011 : 30000,
+                      port: form.eval_port !== undefined ? form.eval_port : (form.scenario === "amaas" ? 10011 : 30000),
                       model: form.model,
                       ssh_user: form.ssh_user || "",
                       ssh_password: form.ssh_password,

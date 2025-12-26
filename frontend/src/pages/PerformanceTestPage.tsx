@@ -166,7 +166,7 @@ export function PerformanceTestPage({
                 <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>连接配置</h3>
                 <div className="form-grid">
                   <label>
-                    AMaaS IP *
+                    服务器 IP *
                     <input
                       type="text"
                       value={form.amaas_ip || ""}
@@ -529,7 +529,7 @@ export function PerformanceTestPage({
                 <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>连接配置</h3>
                 <div className="form-grid">
                   <label>
-                    API IP *
+                    服务器 IP *
                     <input
                       type="text"
                       value={form.amaas_ip || ""}
@@ -997,35 +997,39 @@ export function PerformanceTestPage({
               </label>
             </div>
 
+            {/* 连接配置 */}
+            <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>连接配置</h3>
+            <div className="form-grid">
+              <label>
+                服务器 IP *
+                <input
+                  type="text"
+                  value={form.amaas_ip || ""}
+                  onChange={(e) => {
+                    updateForm("amaas_ip", e.target.value);
+                    if (e.target.value) {
+                      setValidationErrors(prev => {
+                        const next = new Set(prev);
+                        next.delete("amaas_ip");
+                        return next;
+                      });
+                    }
+                  }}
+                  placeholder="例如: 192.168.1.100"
+                  required
+                  style={{
+                    borderColor: validationErrors.has("amaas_ip") ? "#f87171" : undefined,
+                  }}
+                />
+                <small style={{ color: "#666" }}>远程服务器的IP地址</small>
+              </label>
+            </div>
+
             {/* AMaaS API 配置（仅在 AMaaS 场景显示） */}
             {form.scenario === "amaas" && (
               <>
                 <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>AMaaS API 配置</h3>
                 <div className="form-grid">
-                  <label>
-                    AMaaS API 端口 *
-                    <input
-                      type="number"
-                      value={form.amaas_api_port === undefined ? "" : form.amaas_api_port}
-                      onChange={(e) => {
-                        updateForm("amaas_api_port", e.target.value === "" ? undefined : parseInt(e.target.value));
-                        if (e.target.value) {
-                          setValidationErrors(prev => {
-                            const next = new Set(prev);
-                            next.delete("amaas_api_port");
-                            return next;
-                          });
-                        }
-                      }}
-                      placeholder="例如: 10001"
-                      min="1024"
-                      max="65535"
-                      required
-                      style={{
-                        borderColor: validationErrors.has("amaas_api_port") ? "#f87171" : undefined,
-                      }}
-                    />
-                  </label>
 
                   <label>
                     AMaaS 用户名
@@ -1087,29 +1091,6 @@ export function PerformanceTestPage({
             {/* SSH 配置 */}
             <h3 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: "600" }}>SSH 配置</h3>
             <div className="form-grid">
-              <label>
-                SSH 主机 *
-                <input
-                  type="text"
-                  value={form.amaas_ip || ""}
-                  onChange={(e) => {
-                    updateForm("amaas_ip", e.target.value);
-                    if (e.target.value) {
-                      setValidationErrors(prev => {
-                        const next = new Set(prev);
-                        next.delete("amaas_ip");
-                        return next;
-                      });
-                    }
-                  }}
-                  placeholder="例如: 192.168.1.100"
-                  required
-                  style={{
-                    borderColor: validationErrors.has("amaas_ip") ? "#f87171" : undefined,
-                  }}
-                />
-              </label>
-
               <label>
                 SSH 用户 *
                 <input
@@ -1456,7 +1437,7 @@ export function PerformanceTestPage({
                       base: form.scenario as "amaas" | "ft",
                       skip_launch: false,
                       ip: form.amaas_ip || "",
-                      port: form.scenario === "amaas" ? (form.amaas_api_port || 10001) : form.model_port,
+                      port: form.scenario === "amaas" ? 10001 : form.model_port,
                       model: form.model,
                       tokenizer_path: form.tokenizer_path || undefined,
                       ssh_user: form.ssh_user || "",
