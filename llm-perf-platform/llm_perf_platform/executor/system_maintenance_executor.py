@@ -107,6 +107,7 @@ class SystemMaintenanceExecutor(BaseExecutor):
         })
 
         needs_recreate = False
+        needs_reinstall = False
 
         if repo_exists:
             self.log_info(f"步骤 2/4: 仓库已存在，尝试更新")
@@ -122,6 +123,7 @@ class SystemMaintenanceExecutor(BaseExecutor):
                 "stdout": stdout,
                 "stderr": stderr
             })
+            self.log_info(f"success: {success}")
 
             if not success:
                 self.log_warning(f"git fetch 失败: {stderr}，将重新创建仓库")
@@ -132,6 +134,7 @@ class SystemMaintenanceExecutor(BaseExecutor):
                     ["git", "pull"],
                     cwd=repo_path
                 )
+                self.log_info(f"success: {success}")
                 summary["steps"].append({
                     "step": "git_pull",
                     "success": success,
@@ -143,7 +146,9 @@ class SystemMaintenanceExecutor(BaseExecutor):
                     self.log_warning(f"git pull 失败: {stderr}，将重新创建仓库")
                     needs_recreate = True
                 else:
-                    self.log_info("成功更新代码")
+                    self.log_info("成功更新代码，准备重新安装 appauto")
+                    # 代码更新后，需要重新安装 appauto 到 venv
+                    needs_reinstall = True
         else:
             self.log_info(f"步骤 2/4: 仓库不存在")
             needs_recreate = True
@@ -179,6 +184,39 @@ class SystemMaintenanceExecutor(BaseExecutor):
                 )
 
             self.log_info(f"成功创建独立仓库和虚拟环境")
+
+        # 步骤 3.5: 如果只是更新代码（没有重新创建），需要重新安装 appauto
+        if needs_reinstall and not needs_recreate:
+            self.log_info(f"步骤 3/4: 重新安装 appauto 到 venv")
+
+            # 使用系统的 uv 命令，通过 VIRTUAL_ENV 环境变量指定目标 venv
+            venv_path = repo_path / ".venv"
+
+            # 使用 uv pip install 重新安装 appauto（非编辑模式，与 VenvManager 保持一致）
+            success, stdout, stderr = await self._run_command_with_env(
+                ["uv", "pip", "install", ".", "-i", "https://pypi.tuna.tsinghua.edu.cn/simple"],
+                cwd=repo_path,
+                env={"VIRTUAL_ENV": str(venv_path)},
+                timeout=600
+            )
+
+            summary["steps"].append({
+                "step": "reinstall_appauto",
+                "success": success,
+                "stdout": stdout,
+                "stderr": stderr
+            })
+
+            if not success:
+                error_msg = f"重新安装 appauto 失败: {stderr}"
+                self.log_error(error_msg)
+                return ExecutionResult(
+                    success=False,
+                    summary=summary,
+                    error=error_msg
+                )
+
+            self.log_info("成功重新安装 appauto")
 
         # 步骤 4: 获取版本信息
         self.log_info(f"步骤 4/4: 获取版本信息")
@@ -232,12 +270,38 @@ class SystemMaintenanceExecutor(BaseExecutor):
         Returns:
             tuple[bool, str, str]: (成功标志, stdout, stderr)
         """
+        return await self._run_command_with_env(cmd, cwd, timeout, env=None)
+
+    async def _run_command_with_env(
+        self,
+        cmd: list,
+        cwd: Path = None,
+        timeout: int = 300,
+        env: dict = None
+    ) -> tuple[bool, str, str]:
+        """运行命令并返回结果（支持自定义环境变量）
+
+        Args:
+            cmd: 命令列表
+            cwd: 工作目录
+            timeout: 超时时间（秒）
+            env: 额外的环境变量（会合并到当前环境）
+
+        Returns:
+            tuple[bool, str, str]: (成功标志, stdout, stderr)
+        """
         try:
+            # 准备环境变量
+            process_env = os.environ.copy()
+            if env:
+                process_env.update(env)
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd
+                cwd=cwd,
+                env=process_env
             )
 
             stdout, stderr = await asyncio.wait_for(
