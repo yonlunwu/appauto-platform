@@ -429,15 +429,11 @@ class CommandExecutor(BaseExecutor):
             payload: 必须包含：
                 - deploy_type: "amaas" 或 "ft"
                 - ip: IP 地址
-                - tag: 标签
                 - tar_name: tar 包名称
                 - ssh_user: SSH 用户名（可选，默认 qujing）
                 - ssh_password: SSH 密码（可选）
                 - ssh_port: SSH 端口（可选，默认 22）
                 - user: 用户信息（可选，用于消息卡片）
-
-                FT 特有参数：
-                - image: 镜像名称（FT 部署必需）
         """
         self.log_info("Executing environment deployment via appauto env deploy")
 
@@ -452,14 +448,6 @@ class CommandExecutor(BaseExecutor):
         if payload.get("ip"):
             cmd_parts.extend(["--ip", payload["ip"]])
 
-        # FT 需要 image 参数
-        if deploy_type == "ft":
-            if not payload.get("image"):
-                raise ValueError("image is required for FT deployment")
-            cmd_parts.extend(["--image", payload["image"]])
-
-        if payload.get("tag"):
-            cmd_parts.extend(["--tag", payload["tag"]])
         if payload.get("tar_name"):
             cmd_parts.extend(["--tar-name", payload["tar_name"]])
 

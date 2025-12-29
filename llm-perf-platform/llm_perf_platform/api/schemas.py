@@ -459,8 +459,6 @@ class DeployAMaaSRequest(BaseModel):
 class DeployFTRequest(BaseModel):
     """FT 部署请求"""
     ip: str
-    image: str = "approachingai/ktransformers"
-    tag: str
     tar_name: str
     ssh_user: str = "qujing"
     ssh_password: str = "qujing@$#21"

@@ -1129,7 +1129,6 @@ def _run_deploy(
         "task_type": "env_deploy",  # 标记为环境部署
         "deploy_type": deploy_type,
         "ip": request.ip,
-        "tag": request.tag,
         "tar_name": request.tar_name,
         "ssh_user": request.ssh_user,
         "ssh_password": request.ssh_password,
@@ -1138,9 +1137,9 @@ def _run_deploy(
         "appauto_branch": request.appauto_branch,
     }
 
-    # FT 部署需要 image 参数
-    if deploy_type == "ft":
-        parameters["image"] = request.image
+    # AMaaS 部署需要 tag 参数（FT 已移除 tag）
+    if deploy_type == "amaas":
+        parameters["tag"] = request.tag
 
     # 创建任务记录
     record = task_service.create_task(
@@ -1160,7 +1159,6 @@ def _run_deploy(
         "task_type": "env_deploy",
         "deploy_type": deploy_type,
         "ip": request.ip,
-        "tag": request.tag,
         "tar_name": request.tar_name,
         "ssh_user": request.ssh_user,
         "ssh_password": request.ssh_password,
@@ -1169,9 +1167,9 @@ def _run_deploy(
         "appauto_branch": request.appauto_branch,
     }
 
-    # FT 部署需要 image 参数
-    if deploy_type == "ft":
-        payload_dict["image"] = request.image
+    # AMaaS 部署需要 tag 参数（FT 已移除 tag）
+    if deploy_type == "amaas":
+        payload_dict["tag"] = request.tag
 
     # 创建 Pydantic Payload 模型（会自动验证）
     payload = EnvDeployPayload(**payload_dict)

@@ -390,46 +390,6 @@ export const DeploymentPage: React.FC<DeploymentPageProps> = ({
               </label>
 
               <label>
-                Image
-                <input
-                  type="text"
-                  value={form.image || ""}
-                  onChange={(e) => {
-                    updateForm("image", e.target.value);
-                  }}
-                  placeholder="默认: approachingai/ktransformers"
-                />
-              </label>
-
-              <label>
-                Tag *
-                <input
-                  type="text"
-                  value={form.tag || ""}
-                  onChange={(e) => {
-                    updateForm("tag", e.target.value);
-                    if (e.target.value) {
-                      setValidationErrors(prev => {
-                        const next = new Set(prev);
-                        next.delete("tag");
-                        return next;
-                      });
-                    }
-                  }}
-                  placeholder="v1.0.0"
-                  required
-                  style={{
-                    borderColor: validationErrors.has("tag") ? "#f87171" : undefined,
-                  }}
-                />
-                {validationErrors.has("tag") && (
-                  <span style={{ color: "#f87171", fontSize: "0.875rem" }}>
-                    请填写 Tag
-                  </span>
-                )}
-              </label>
-
-              <label>
                 Tar 包名 *
                 <input
                   type="text"
@@ -503,7 +463,6 @@ export const DeploymentPage: React.FC<DeploymentPageProps> = ({
                   // 验证必填项
                   const errors = new Set<string>();
                   if (!form.ip) errors.add("ip");
-                  if (!form.tag) errors.add("tag");
                   if (!form.tar_name) errors.add("tar_name");
                   if (!form.appauto_branch) errors.add("appauto_branch");
 
@@ -532,8 +491,6 @@ export const DeploymentPage: React.FC<DeploymentPageProps> = ({
                       },
                       body: JSON.stringify({
                         ip: form.ip,
-                        image: form.image || "approachingai/ktransformers",
-                        tag: form.tag,
                         tar_name: form.tar_name,
                         ssh_user: form.ssh_user || "qujing",
                         ssh_password: form.ssh_password || "qujing@$#21",
