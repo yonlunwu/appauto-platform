@@ -21,13 +21,14 @@ class SystemMaintenanceExecutor(BaseExecutor):
 
     def __init__(self, task_id: int):
         super().__init__(task_id)
-        # appauto 代码路径（从环境变量读取）
+        # APPAUTO_PATH 环境变量检查（为了向后兼容保留，但新实现不再使用）
+        # 系统维护现在使用 VenvManager 来管理独立的 appauto 仓库
         appauto_path_str = os.getenv("APPAUTO_PATH")
-        if not appauto_path_str:
-            raise RuntimeError("APPAUTO_PATH environment variable is not set. Please configure it in the systemd service file.")
-        self.appauto_path = Path(appauto_path_str)
-        # venv 基础路径
-        self.venv_base_path = Path.home() / ".local/share/llm-perf/venvs"
+        if appauto_path_str:
+            self.log_info(f"检测到 APPAUTO_PATH 环境变量: {appauto_path_str}，但新实现使用独立仓库管理")
+            self.legacy_appauto_path = Path(appauto_path_str)
+        else:
+            self.legacy_appauto_path = None
 
     async def execute(self, payload: Dict[str, Any]) -> ExecutionResult:
         """执行系统维护任务
@@ -68,12 +69,13 @@ class SystemMaintenanceExecutor(BaseExecutor):
     async def _update_appauto(self, branch: str) -> ExecutionResult:
         """更新 appauto 代码和虚拟环境
 
+        使用 VenvManager 管理独立的 appauto 仓库，每个分支拥有独立的代码和 venv。
+
         步骤：
-        1. 在 appauto 仓库执行 git fetch
-        2. 检出指定分支 git checkout <branch>
-        3. 拉取最新代码 git pull
-        4. 重新创建/更新对应的 venv
-        5. 在 venv 中重新安装 appauto
+        1. 检查仓库是否存在
+        2. 如果存在，尝试更新（git pull）
+        3. 如果不存在或更新失败，删除并重新创建
+        4. 获取版本信息
 
         Args:
             branch: 分支名
@@ -81,170 +83,133 @@ class SystemMaintenanceExecutor(BaseExecutor):
         Returns:
             ExecutionResult: 执行结果
         """
+        from llm_perf_platform.services.venv_manager import get_venv_manager
+
         summary = {
             "branch": branch,
-            "appauto_path": str(self.appauto_path),
             "steps": []
         }
 
-        # 检查 appauto 路径是否存在
-        if not self.appauto_path.exists():
-            error_msg = f"appauto 路径不存在: {self.appauto_path}"
-            self.log_error(error_msg)
-            return ExecutionResult(
-                success=False,
-                summary=summary,
-                error=error_msg
-            )
+        # 获取 VenvManager 实例
+        venv_manager = get_venv_manager()
+        repo_path = venv_manager.get_repo_path(branch)
 
-        # 步骤 1: git fetch
-        self.log_info("步骤 1/5: 执行 git fetch")
-        success, stdout, stderr = await self._run_command(
-            ["git", "fetch"],
-            cwd=self.appauto_path
-        )
+        self.log_info(f"使用 VenvManager 管理 appauto 分支: {branch}")
+        self.log_info(f"仓库路径: {repo_path}")
+
+        # 步骤 1: 检查仓库是否存在
+        repo_exists = venv_manager.repo_exists(branch)
         summary["steps"].append({
-            "step": "git_fetch",
-            "success": success,
-            "stdout": stdout,
-            "stderr": stderr
+            "step": "check_repo_exists",
+            "success": True,
+            "repo_exists": repo_exists,
+            "repo_path": str(repo_path)
         })
-        if not success:
-            return ExecutionResult(
-                success=False,
-                summary=summary,
-                error=f"git fetch 失败: {stderr}"
-            )
 
-        # 步骤 2: git checkout
-        self.log_info(f"步骤 2/5: 检出分支 {branch}")
-        success, stdout, stderr = await self._run_command(
-            ["git", "checkout", branch],
-            cwd=self.appauto_path
-        )
-        summary["steps"].append({
-            "step": "git_checkout",
-            "success": success,
-            "stdout": stdout,
-            "stderr": stderr
-        })
-        if not success:
-            return ExecutionResult(
-                success=False,
-                summary=summary,
-                error=f"git checkout 失败: {stderr}"
-            )
+        needs_recreate = False
 
-        # 步骤 3: git pull
-        self.log_info("步骤 3/5: 拉取最新代码")
-        success, stdout, stderr = await self._run_command(
-            ["git", "pull"],
-            cwd=self.appauto_path
-        )
-        summary["steps"].append({
-            "step": "git_pull",
-            "success": success,
-            "stdout": stdout,
-            "stderr": stderr
-        })
-        if not success:
-            return ExecutionResult(
-                success=False,
-                summary=summary,
-                error=f"git pull 失败: {stderr}"
-            )
+        if repo_exists:
+            self.log_info(f"步骤 2/4: 仓库已存在，尝试更新")
 
-        # 获取当前 commit hash
+            # 尝试 git fetch
+            success, stdout, stderr = await self._run_command(
+                ["git", "fetch"],
+                cwd=repo_path
+            )
+            summary["steps"].append({
+                "step": "git_fetch",
+                "success": success,
+                "stdout": stdout,
+                "stderr": stderr
+            })
+
+            if not success:
+                self.log_warning(f"git fetch 失败: {stderr}，将重新创建仓库")
+                needs_recreate = True
+            else:
+                # 尝试 git pull
+                success, stdout, stderr = await self._run_command(
+                    ["git", "pull"],
+                    cwd=repo_path
+                )
+                summary["steps"].append({
+                    "step": "git_pull",
+                    "success": success,
+                    "stdout": stdout,
+                    "stderr": stderr
+                })
+
+                if not success:
+                    self.log_warning(f"git pull 失败: {stderr}，将重新创建仓库")
+                    needs_recreate = True
+                else:
+                    self.log_info("成功更新代码")
+        else:
+            self.log_info(f"步骤 2/4: 仓库不存在")
+            needs_recreate = True
+
+        # 步骤 3: 如果需要，重新创建仓库
+        if needs_recreate:
+            self.log_info(f"步骤 3/4: 删除旧仓库并重新创建")
+
+            # 删除旧仓库
+            if repo_path.exists():
+                venv_manager.remove_repo(branch)
+                summary["steps"].append({
+                    "step": "remove_old_repo",
+                    "success": True
+                })
+
+            # 创建新仓库（VenvManager.create_repo 会自动克隆代码、创建venv、安装依赖）
+            self.log_info(f"创建新的独立仓库（包含代码克隆、venv创建、依赖安装）")
+            create_success = venv_manager.create_repo(branch)
+
+            summary["steps"].append({
+                "step": "create_repo",
+                "success": create_success
+            })
+
+            if not create_success:
+                error_msg = f"创建仓库失败: {branch}"
+                self.log_error(error_msg)
+                return ExecutionResult(
+                    success=False,
+                    summary=summary,
+                    error=error_msg
+                )
+
+            self.log_info(f"成功创建独立仓库和虚拟环境")
+
+        # 步骤 4: 获取版本信息
+        self.log_info(f"步骤 4/4: 获取版本信息")
+
+        # 获取 commit hash
         success, commit_hash, _ = await self._run_command(
             ["git", "rev-parse", "HEAD"],
-            cwd=self.appauto_path
+            cwd=repo_path
         )
         if success:
             summary["commit_hash"] = commit_hash.strip()
 
-        # 步骤 4: 重新创建 venv
-        venv_path = self.venv_base_path / f"appauto-{branch}" / ".venv"
-        self.log_info(f"步骤 4/5: 重新创建虚拟环境 {venv_path}")
-
-        # 删除旧的 venv（如果存在）
-        if venv_path.exists():
-            self.log_info(f"删除旧的虚拟环境: {venv_path}")
-            success, stdout, stderr = await self._run_command(
-                ["rm", "-rf", str(venv_path)]
-            )
-            if not success:
-                self.log_error(f"删除旧虚拟环境失败: {stderr}")
-
-        # 确保父目录存在
-        venv_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # 创建新的 venv
-        success, stdout, stderr = await self._run_command(
-            ["python3", "-m", "venv", str(venv_path)]
-        )
-        summary["steps"].append({
-            "step": "create_venv",
-            "success": success,
-            "venv_path": str(venv_path),
-            "stdout": stdout,
-            "stderr": stderr
-        })
-        if not success:
-            return ExecutionResult(
-                success=False,
-                summary=summary,
-                error=f"创建虚拟环境失败: {stderr}"
-            )
-
-        # 步骤 5: 在 venv 中安装 appauto
-        self.log_info("步骤 5/5: 安装 appauto 依赖")
-        pip_path = venv_path / "bin" / "pip"
-
-        # 使用清华源加速下载
-        pypi_mirror = "https://pypi.tuna.tsinghua.edu.cn/simple"
-
-        # 先安装 uv（加速依赖安装），使用清华源和较长超时时间（10分钟）
-        success, stdout, stderr = await self._run_command(
-            [str(pip_path), "install", "uv", "-i", pypi_mirror],
-            timeout=600
-        )
-        if not success:
-            self.log_error(f"安装 uv 失败: {stderr}")
-
-        # 使用 uv 或 pip 安装 appauto，使用清华源和更长超时时间（20分钟）
-        uv_path = venv_path / "bin" / "uv"
-        if uv_path.exists():
-            install_cmd = [str(uv_path), "pip", "install", "-e", str(self.appauto_path), "-i", pypi_mirror]
-        else:
-            install_cmd = [str(pip_path), "install", "-e", str(self.appauto_path), "-i", pypi_mirror]
-
-        success, stdout, stderr = await self._run_command(install_cmd, timeout=1200)
-        summary["steps"].append({
-            "step": "install_appauto",
-            "success": success,
-            "stdout": stdout,
-            "stderr": stderr
-        })
-        if not success:
-            return ExecutionResult(
-                success=False,
-                summary=summary,
-                error=f"安装 appauto 失败: {stderr}"
-            )
-
-        # 获取安装的 appauto 版本
-        appauto_bin = venv_path / "bin" / "appauto"
+        # 获取 appauto 版本
+        appauto_bin = venv_manager.get_appauto_bin_path(branch)
         if appauto_bin.exists():
             success, version_output, _ = await self._run_command(
                 [str(appauto_bin), "--version"]
             )
             if success:
                 summary["appauto_version"] = version_output.strip()
+                self.log_info(f"Appauto 版本: {summary['appauto_version']}")
 
-        summary["venv_path"] = str(venv_path)
+        summary["repo_path"] = str(repo_path)
+        summary["venv_path"] = str(repo_path / ".venv")
+        summary["appauto_bin"] = str(appauto_bin)
         summary["completed_at"] = datetime.now().isoformat()
 
-        self.log_info(f"系统维护完成: 分支 {branch}, venv: {venv_path}")
+        self.log_info(f"系统维护完成: 分支 {branch}")
+        self.log_info(f"  仓库路径: {repo_path}")
+        self.log_info(f"  Venv 路径: {repo_path / '.venv'}")
+        self.log_info(f"  Appauto 可执行文件: {appauto_bin}")
 
         return ExecutionResult(
             success=True,
