@@ -3,6 +3,7 @@
 通过 SSH 连接到远程机器，收集硬件配置信息，生成详细的硬件报告。
 """
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
@@ -18,7 +19,7 @@ class HardwareInfoExecutor(BaseExecutor):
     连接到远程机器，执行硬件信息收集脚本，生成 JSON 格式的报告。
 
     收集的信息包括：
-    - GPU 信息（nvidia-smi）
+    - GPU/NPU 信息（支持 NVIDIA、华为 Ascend、沐曦）
     - CPU 信息（lscpu, /proc/cpuinfo）
     - 内存信息（free）
     - 磁盘信息（df）
@@ -151,20 +152,92 @@ class HardwareInfoExecutor(BaseExecutor):
 
         return info
 
+    def _clean_command_output(self, output: str) -> str:
+        """清理命令输出，过滤掉 Shell 配置产生的干扰信息
+
+        Args:
+            output: 原始命令输出
+
+        Returns:
+            清理后的输出
+        """
+        if not output:
+            return ""
+
+        lines = []
+        for line in output.split('\n'):
+            stripped = line.strip()
+
+            # 跳过 declare -x 声明
+            if stripped.startswith('declare -x') or stripped.startswith('declare -'):
+                continue
+            # 跳过 Authorized users only 提示
+            if 'Authorized users only' in line or 'All activities may be monitored' in line:
+                continue
+            # 跳过空行
+            if not stripped:
+                continue
+
+            lines.append(line)
+
+        return '\n'.join(lines)
+
     async def _collect_gpu_info(self, ssh: SSHClient) -> list:
-        """收集 GPU 信息"""
-        cmd = "nvidia-smi --query-gpu=index,name,driver_version,memory.total,memory.free,memory.used,temperature.gpu,utilization.gpu --format=csv,noheader,nounits 2>/dev/null || echo 'No NVIDIA GPU'"
+        """收集 GPU/NPU 信息，支持多厂商
+
+        检测顺序：NVIDIA -> 华为 NPU -> 沐曦 GPU
+
+        Returns:
+            GPU/NPU 信息列表
+        """
+        # 1. 尝试 NVIDIA GPU
+        gpus = await self._collect_nvidia_gpu(ssh)
+        if gpus:
+            self.log_info(f"Detected {len(gpus)} NVIDIA GPU(s)")
+            return gpus
+
+        # 2. 尝试华为 NPU
+        gpus = await self._collect_huawei_npu(ssh)
+        if gpus:
+            self.log_info(f"Detected {len(gpus)} Huawei NPU(s)")
+            return gpus
+
+        # 3. 尝试沐曦 GPU
+        gpus = await self._collect_mthreads_gpu(ssh)
+        if gpus:
+            self.log_info(f"Detected {len(gpus)} Moore Threads GPU(s)")
+            return gpus
+
+        self.log_info("No GPU/NPU detected")
+        return []
+
+    async def _collect_nvidia_gpu(self, ssh: SSHClient) -> list:
+        """收集 NVIDIA GPU 信息
+
+        Returns:
+            NVIDIA GPU 信息列表
+        """
+        cmd = "nvidia-smi --query-gpu=index,name,driver_version,memory.total,memory.free,memory.used,temperature.gpu,utilization.gpu --format=csv,noheader,nounits 2>/dev/null"
         stdout, stderr, returncode = await ssh.execute(cmd)
 
-        if returncode != 0 or stdout.strip() == "No NVIDIA GPU":
+        if returncode != 0:
+            return []
+
+        # 清理输出
+        stdout = self._clean_command_output(stdout)
+        if not stdout.strip():
             return []
 
         gpus = []
         for line in stdout.strip().split("\n"):
-            if line.strip():
+            if not line.strip():
+                continue
+
+            try:
                 parts = [p.strip() for p in line.split(",")]
                 if len(parts) >= 8:
                     gpus.append({
+                        "vendor": "NVIDIA",
                         "index": int(parts[0]),
                         "name": parts[1],
                         "driver_version": parts[2],
@@ -174,23 +247,289 @@ class HardwareInfoExecutor(BaseExecutor):
                         "temperature_c": int(float(parts[6])) if parts[6] != "N/A" else None,
                         "utilization_percent": int(float(parts[7])) if parts[7] != "N/A" else None,
                     })
+            except (ValueError, IndexError) as e:
+                self.log_warning(f"Failed to parse NVIDIA GPU line '{line}': {e}")
+                continue
+
         return gpus
+
+    async def _collect_huawei_npu(self, ssh: SSHClient) -> list:
+        """收集华为 NPU (Ascend) 信息
+
+        Returns:
+            华为 NPU 信息列表
+        """
+        # 先检查 npu-smi 是否存在
+        check_cmd = "which npu-smi 2>/dev/null"
+        stdout, _, returncode = await ssh.execute(check_cmd)
+        if returncode != 0:
+            return []
+
+        # 获取 NPU 列表
+        cmd = "npu-smi info 2>/dev/null"
+        stdout, stderr, returncode = await ssh.execute(cmd)
+
+        if returncode != 0:
+            return []
+
+        stdout = self._clean_command_output(stdout)
+        if not stdout.strip():
+            return []
+
+        npus = []
+        # 解析 npu-smi info 输出
+        # 华为 NPU 的输出格式是每个 NPU 两行：
+        # 第一行: | 0     910B4-1             | OK            | 70.7   ...
+        # 第二行: | 0                         | 0000:85:00.0  | 0      ...
+        lines = stdout.split('\n')
+
+        for line in lines:
+            # 匹配 NPU 数据行（以 | 开头）
+            if not line.strip().startswith('|'):
+                continue
+
+            parts = [p.strip() for p in line.split('|')]
+            # 过滤掉表头和分隔线
+            if len(parts) < 4 or not parts[1] or parts[1].startswith('NPU') or parts[1].startswith('=') or parts[1].startswith('Chip'):
+                continue
+
+            try:
+                # parts[1] 的格式是 "0     910B4-1" 或 "0                     "
+                # 需要分割出索引和型号
+                field1_parts = parts[1].split()
+                if not field1_parts or not field1_parts[0].isdigit():
+                    continue
+
+                npu_index = int(field1_parts[0])
+
+                # 如果 field1_parts 有第二部分，且包含型号特征（如含有"-"），则这是 NPU 信息行
+                if len(field1_parts) >= 2 and '-' in field1_parts[1]:
+                    npu_name = field1_parts[1]
+
+                    # 获取详细信息
+                    npu_detail = await self._get_huawei_npu_detail(ssh, npu_index)
+
+                    npus.append({
+                        "vendor": "Huawei",
+                        "type": "NPU",
+                        "index": npu_index,
+                        "name": npu_name,
+                        **npu_detail
+                    })
+                # 否则这是第二行（Chip 行），跳过
+
+            except (ValueError, IndexError) as e:
+                self.log_warning(f"Failed to parse Huawei NPU line '{line}': {e}")
+                continue
+
+        return npus
+
+    async def _get_huawei_npu_detail(self, ssh: SSHClient, npu_id: int) -> Dict[str, Any]:
+        """获取华为 NPU 详细信息
+
+        Args:
+            ssh: SSH 客户端
+            npu_id: NPU ID
+
+        Returns:
+            NPU 详细信息字典
+        """
+        detail = {}
+
+        # 获取使用率信息
+        cmd = f"npu-smi info -t usages -i {npu_id} 2>/dev/null"
+        stdout, _, returncode = await ssh.execute(cmd)
+
+        if returncode == 0:
+            stdout = self._clean_command_output(stdout)
+            for line in stdout.split('\n'):
+                if ':' not in line:
+                    continue
+
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+
+                try:
+                    if 'HBM Capacity(MB)' in key:
+                        detail['memory_total_mb'] = int(value)
+                    elif 'HBM Usage Rate(%)' in key:
+                        usage_rate = int(value)
+                        detail['memory_usage_percent'] = usage_rate
+                        if 'memory_total_mb' in detail:
+                            detail['memory_used_mb'] = int(detail['memory_total_mb'] * usage_rate / 100)
+                            detail['memory_free_mb'] = detail['memory_total_mb'] - detail['memory_used_mb']
+                    elif 'Aicore Usage Rate(%)' in key or 'AICore Usage Rate(%)' in key:
+                        detail['utilization_percent'] = int(value)
+                except (ValueError, KeyError) as e:
+                    self.log_warning(f"Failed to parse NPU usage info '{line}': {e}")
+                    continue
+
+        # 获取板卡信息
+        cmd = f"npu-smi info -t board -i {npu_id} 2>/dev/null"
+        stdout, _, returncode = await ssh.execute(cmd)
+
+        if returncode == 0:
+            stdout = self._clean_command_output(stdout)
+            for line in stdout.split('\n'):
+                if ':' not in line:
+                    continue
+
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+
+                if 'Software Version' in key:
+                    detail['driver_version'] = value
+                elif 'Product Name' in key:
+                    detail['product_name'] = value
+                elif 'Model' in key and 'Model Name' not in key:
+                    detail['model'] = value
+
+        return detail
+
+    async def _collect_mthreads_gpu(self, ssh: SSHClient) -> list:
+        """收集沐曦 GPU (Moore Threads) 信息
+
+        Returns:
+            沐曦 GPU 信息列表
+        """
+        # 尝试多个可能的命令
+        commands = [
+            ("mthreads-gmi", "mthreads-gmi -L 2>/dev/null"),
+            ("mtgpu-smi", "mtgpu-smi -L 2>/dev/null"),
+            ("mt-smi", "mt-smi -L 2>/dev/null"),
+        ]
+
+        for cmd_name, list_cmd in commands:
+            # 先检查命令是否存在
+            check_cmd = f"which {cmd_name} 2>/dev/null"
+            stdout, _, returncode = await ssh.execute(check_cmd)
+            if returncode != 0:
+                continue
+
+            # 执行列表命令
+            stdout, _, returncode = await ssh.execute(list_cmd)
+            if returncode == 0:
+                stdout = self._clean_command_output(stdout)
+                if stdout.strip():
+                    gpus = await self._parse_mthreads_output(ssh, stdout, cmd_name)
+                    if gpus:
+                        return gpus
+
+        return []
+
+    async def _parse_mthreads_output(self, ssh: SSHClient, list_output: str, base_cmd: str) -> list:
+        """解析沐曦 GPU 输出
+
+        Args:
+            ssh: SSH 客户端
+            list_output: GPU 列表输出
+            base_cmd: 基础命令名称
+
+        Returns:
+            GPU 信息列表
+        """
+        gpus = []
+
+        # 假设输出格式类似 nvidia-smi -L
+        # GPU 0: MTT S80 (UUID: GPU-xxx)
+        # 或者其他格式，需要灵活解析
+        lines = list_output.strip().split('\n')
+
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('=') or line.startswith('-'):
+                continue
+
+            # 尝试匹配 "GPU X:" 或 "X:" 格式
+            match = re.search(r'(?:GPU\s+)?(\d+)\s*[:：]\s*(.+)', line)
+            if match:
+                try:
+                    index = int(match.group(1))
+                    name_info = match.group(2).strip()
+
+                    # 提取名称（去掉 UUID 等信息）
+                    name = name_info.split('(')[0].strip() if '(' in name_info else name_info
+
+                    gpu_info = {
+                        "vendor": "Moore Threads",
+                        "index": index,
+                        "name": name,
+                    }
+
+                    # 尝试获取更详细信息
+                    # 注意：这里的命令格式可能需要根据实际情况调整
+                    detail_cmd = f"{base_cmd} -q -i {index} 2>/dev/null"
+                    stdout, _, returncode = await ssh.execute(detail_cmd)
+                    if returncode == 0:
+                        stdout = self._clean_command_output(stdout)
+                        # 解析详细信息（格式待确认）
+                        detail = self._parse_mthreads_detail(stdout)
+                        gpu_info.update(detail)
+
+                    gpus.append(gpu_info)
+                except (ValueError, IndexError) as e:
+                    self.log_warning(f"Failed to parse Moore Threads GPU line '{line}': {e}")
+                    continue
+
+        return gpus
+
+    def _parse_mthreads_detail(self, detail_output: str) -> Dict[str, Any]:
+        """解析沐曦 GPU 详细信息
+
+        Args:
+            detail_output: 详细信息输出
+
+        Returns:
+            解析后的信息字典
+        """
+        detail = {}
+
+        # 这里需要根据实际的输出格式来解析
+        # 目前先做简单的键值对解析
+        for line in detail_output.split('\n'):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip().lower()
+                value = value.strip()
+
+                if 'memory' in key and 'total' in key:
+                    # 尝试提取内存大小
+                    match = re.search(r'(\d+)\s*(?:MB|MiB)', value)
+                    if match:
+                        detail['memory_total_mb'] = int(match.group(1))
+                elif 'driver' in key or 'version' in key:
+                    detail['driver_version'] = value
+                elif 'temperature' in key:
+                    match = re.search(r'(\d+)', value)
+                    if match:
+                        detail['temperature_c'] = int(match.group(1))
+                elif 'utilization' in key or 'usage' in key:
+                    match = re.search(r'(\d+)', value)
+                    if match:
+                        detail['utilization_percent'] = int(match.group(1))
+
+        return detail
 
     async def _collect_cpu_info(self, ssh: SSHClient) -> Dict[str, Any]:
         """收集 CPU 信息"""
         # CPU 核心数
         cmd_cores = "nproc"
         stdout, _, _ = await ssh.execute(cmd_cores)
+        stdout = self._clean_command_output(stdout)
         cpu_cores = int(stdout.strip()) if stdout.strip().isdigit() else 0
 
         # CPU 型号
         cmd_model = "lscpu | grep 'Model name' | cut -d':' -f2 | xargs"
         stdout, _, _ = await ssh.execute(cmd_model)
+        stdout = self._clean_command_output(stdout)
         cpu_model = stdout.strip() or "Unknown"
 
         # CPU 架构
         cmd_arch = "uname -m"
         stdout, _, _ = await ssh.execute(cmd_arch)
+        stdout = self._clean_command_output(stdout)
         cpu_arch = stdout.strip() or "Unknown"
 
         return {
@@ -208,6 +547,7 @@ class HardwareInfoExecutor(BaseExecutor):
         stdout, _, returncode = await ssh.execute(cmd)
 
         if returncode == 0:
+            stdout = self._clean_command_output(stdout)
             parts = stdout.strip().split()
             if len(parts) >= 7:
                 memory_info.update({
@@ -302,6 +642,7 @@ class HardwareInfoExecutor(BaseExecutor):
         if returncode != 0:
             return []
 
+        stdout = self._clean_command_output(stdout)
         disks = []
         for line in stdout.strip().split("\n"):
             if line.strip():
@@ -322,16 +663,19 @@ class HardwareInfoExecutor(BaseExecutor):
         # OS 发行版
         cmd_os = "cat /etc/os-release | grep '^PRETTY_NAME=' | cut -d'=' -f2 | tr -d '\"'"
         stdout, _, _ = await ssh.execute(cmd_os)
+        stdout = self._clean_command_output(stdout)
         os_name = stdout.strip() or "Unknown"
 
         # 内核版本
         cmd_kernel = "uname -r"
         stdout, _, _ = await ssh.execute(cmd_kernel)
+        stdout = self._clean_command_output(stdout)
         kernel_version = stdout.strip() or "Unknown"
 
         # 主机名
         cmd_hostname = "hostname"
         stdout, _, _ = await ssh.execute(cmd_hostname)
+        stdout = self._clean_command_output(stdout)
         hostname = stdout.strip() or "Unknown"
 
         return {
@@ -345,6 +689,7 @@ class HardwareInfoExecutor(BaseExecutor):
         # IP 地址（简化版，只获取主要网卡）
         cmd = "hostname -I | awk '{print $1}'"
         stdout, _, _ = await ssh.execute(cmd)
+        stdout = self._clean_command_output(stdout)
         primary_ip = stdout.strip() or "Unknown"
 
         return {
