@@ -633,8 +633,8 @@ class EnvDeployPayload(BasePayload):
 
     deploy_type: Literal["amaas", "ft"]
     ip: str
-    tag: str
-    tar_name: str
+    tag: Optional[str] = None
+    tar_name: Optional[str] = None
     ssh_user: str = "qujing"
     ssh_password: str = "qujing@$#21"
     ssh_port: int = 22

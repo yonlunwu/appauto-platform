@@ -9,6 +9,7 @@
 import asyncio
 import json
 import shlex
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
@@ -218,11 +219,138 @@ class CommandExecutor(BaseExecutor):
         return await self._run_command(cmd_parts)
 
 
+    async def _execute_eval_test_async_polling(self, payload: Dict[str, Any]) -> ExecutionResult:
+        """
+        执行正确性测试命令（异步轮询模式）
+
+        使用 Python 直接调用 appauto 的 EvalscopeEval 类，支持后台执行和进度轮询
+
+        Args:
+            payload: 必须包含 eval 测试所需的所有参数
+        """
+        self.log_info("Executing correctness test in async polling mode")
+
+        # 构建 Python 脚本，直接调用 appauto 的 API
+        python_script = f"""
+import sys
+import time
+from appauto.operator.amaas_node import AMaaSNode
+from appauto.tool.evalscope.eval import EvalscopeEval
+
+# 参数
+ip = "{payload.get('ip')}"
+ssh_user = "{payload.get('ssh_user', 'qujing')}"
+ssh_password = "{payload.get('ssh_password', 'madsys123')}"
+ssh_port = {payload.get('ssh_port', 22)}
+model = "{payload.get('model')}"
+port = {payload.get('port', 10011)}
+dataset = "{payload.get('dataset')}"
+max_tokens = {payload.get('max_tokens', 50000)}
+concurrency = {payload.get('concurrency', 4)}
+limit = {payload.get('limit') if payload.get('limit') else 'None'}
+temperature = {payload.get('temperature', 0.6)}
+enable_thinking = {str(payload.get('enable_thinking', True))}
+debug = {str(payload.get('debug', True))}
+
+# 连接到节点
+amaas = AMaaSNode(ip, ssh_user, ssh_password, ssh_port)
+
+# 创建 EvalscopeEval 实例
+evalscope = EvalscopeEval(
+    amaas.cli,
+    model,
+    "127.0.0.1",
+    port,
+    dataset,
+    max_tokens,
+    concurrency,
+    limit,
+    None,  # dataset_args
+    temperature,
+    enable_thinking,
+    debug,
+    api_key=amaas.api.api_keys[0].value if hasattr(amaas, 'api') and amaas.api.api_keys else None,
+)
+
+# 1. 启动后台测试
+print(f"[INFO] Starting eval test in background...")
+work_dir = evalscope.start_eval_background()
+print(f"[INFO] Test started, work_dir: {{work_dir}}")
+
+# 2. 轮询测试状态
+poll_interval = 60  # 每60秒检查一次
+max_wait_time = {self.timeout}  # 使用配置的超时时间
+start_time = time.time()
+last_progress = None
+
+while True:
+    elapsed = time.time() - start_time
+
+    # 检查超时
+    if elapsed > max_wait_time:
+        print(f"[ERROR] Test timeout after {{elapsed:.0f}} seconds")
+        sys.exit(1)
+
+    # 检查状态
+    status, message = evalscope.check_eval_status()
+    print(f"[INFO] Status: {{status}}, Message: {{message}}")
+
+    # 获取进度
+    progress = evalscope.get_eval_progress()
+    if progress and progress != last_progress:
+        print(f"[PROGRESS] {{progress}}")
+        last_progress = progress
+
+    # 判断是否完成
+    if status == "completed":
+        # 获取结果
+        score = evalscope.score
+        if score:
+            print(f"[RESULT] Test completed successfully, score: {{score}}")
+            sys.exit(0)
+        else:
+            print(f"[ERROR] Test completed but no score found")
+            sys.exit(1)
+
+    elif status == "failed":
+        print(f"[ERROR] Test failed: {{message}}")
+        sys.exit(1)
+
+    elif status == "running":
+        # 继续等待
+        time.sleep(poll_interval)
+
+    else:  # unknown
+        # unknown 状态可能是刚启动或出现问题，等待一段时间再检查
+        time.sleep(poll_interval)
+"""
+
+        # 将 Python 脚本写入临时文件
+        script_path = f"/tmp/eval_async_{payload.get('dataset', 'test')}_{int(time.time())}.py"
+        with open(script_path, 'w') as f:
+            f.write(python_script)
+
+        self.log_info(f"Created async polling script: {script_path}")
+
+        # 执行 Python 脚本
+        cmd_parts = ["python", script_path]
+
+        try:
+            result = await self._run_command(cmd_parts)
+            return result
+        finally:
+            # 清理临时文件
+            import os
+            try:
+                os.remove(script_path)
+            except:
+                pass
+
     async def _execute_eval_test(self, payload: Dict[str, Any]) -> ExecutionResult:
         """执行正确性测试命令
-        
-        使用 appauto bench evalscope eval 命令
-        
+
+        使用异步轮询模式执行 eval 测试（新方案）
+
         Args:
             payload: 必须包含：
                 - base: "ft" 或 "amaas"
@@ -235,73 +363,8 @@ class CommandExecutor(BaseExecutor):
                 - temperature: 温度参数
                 等评测参数
         """
-        self.log_info("Executing correctness test via appauto bench evalscope eval")
-        
-        base = payload.get("base", "ft")
-        skip_launch = payload.get("skip_launch", True)
-        
-        # 构建命令
-        cmd_parts = ["appauto", "bench", "evalscope", "eval"]
-        
-        # 添加基础场景标志
-        if base == "amaas":
-            cmd_parts.append("--base-amaas")
-        else:
-            cmd_parts.append("--base-ft")
-        
-        # 是否跳过模型启动
-        if skip_launch:
-            cmd_parts.append("--skip-launch")
-        
-        # 添加连接参数
-        if payload.get("ip"):
-            cmd_parts.extend(["--ip", payload["ip"]])
-        if payload.get("port"):
-            cmd_parts.extend(["--port", str(payload["port"])])
-        
-        # SSH 参数
-        if payload.get("ssh_user"):
-            cmd_parts.extend(["--ssh-user", payload["ssh_user"]])
-        if payload.get("ssh_password"):
-            cmd_parts.extend(["--ssh-password", payload["ssh_password"]])
-        if payload.get("ssh_port"):
-            cmd_parts.extend(["--ssh-port", str(payload["ssh_port"])])
-        
-        # 模型参数
-        if payload.get("model"):
-            cmd_parts.extend(["--model", payload["model"]])
-        
-        # 如果不跳过启动，需要 tp 和 launch_timeout 参数
-        if not skip_launch:
-            if payload.get("tp"):
-                cmd_parts.extend(["--tp", str(payload["tp"])])
-            if payload.get("launch_timeout"):
-                cmd_parts.extend(["--launch-timeout", str(payload["launch_timeout"])])
-        
-        # 评测参数
-        if payload.get("dataset"):
-            cmd_parts.extend(["--dataset", payload["dataset"]])
-        if payload.get("dataset_args"):
-            cmd_parts.extend(["--dataset-args", payload["dataset_args"]])
-        if payload.get("max_tokens"):
-            cmd_parts.extend(["--max-tokens", str(payload["max_tokens"])])
-        if payload.get("concurrency"):
-            cmd_parts.extend(["--concurrency", str(payload["concurrency"])])
-        if payload.get("limit"):
-            cmd_parts.extend(["--limit", str(payload["limit"])])
-        if payload.get("temperature") is not None:
-            cmd_parts.extend(["--temperature", str(payload["temperature"])])
-        
-        # 可选标志
-        if payload.get("enable_thinking"):
-            cmd_parts.append("--enable-thinking")
-        if payload.get("keep_model"):
-            cmd_parts.append("--keep-model")
-        if payload.get("debug"):
-            cmd_parts.append("--debug")
-        
-        # 执行命令
-        return await self._run_command(cmd_parts)
+        # 使用新的异步轮询模式
+        return await self._execute_eval_test_async_polling(payload)
 
 
     async def _execute_pytest(self, payload: Dict[str, Any]) -> ExecutionResult:
