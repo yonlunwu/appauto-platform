@@ -11,7 +11,9 @@ import json
 import shlex
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
+
+from pydantic import BaseModel, ValidationError
 
 from llm_perf_platform.executor.base_executor import (
     BaseExecutor,
@@ -19,6 +21,12 @@ from llm_perf_platform.executor.base_executor import (
     TaskType,
 )
 from llm_perf_platform.services.venv_manager import get_venv_manager
+from llm_perf_platform.api.schemas import (
+    EvalTestPayload,
+    PerfTestPayload,
+    PytestPayload,
+    EnvDeployPayload,
+)
 
 
 class CommandExecutor(BaseExecutor):
@@ -99,32 +107,41 @@ class CommandExecutor(BaseExecutor):
         else:
             self.log_warning(f"[Task {self.task_id}] cancel() called but no process PID/PGID found")
 
-    async def execute(self, payload: Dict[str, Any]) -> ExecutionResult:
+    async def execute(self, payload: Union[Dict[str, Any], BaseModel]) -> ExecutionResult:
         """执行命令
 
         Args:
-            payload: 任务参数字典，必须包含：
+            payload: 任务参数，可以是字典或 Pydantic 模型
                 - command_type: 命令类型（可选，默认使用初始化时的类型）
                 - 根据不同命令类型需要不同参数
 
         Returns:
             ExecutionResult: 执行结果
         """
-        command_type = TaskType(payload.get("command_type", self.command_type))
+        # 如果是 Pydantic 模型，转换为字典（向后兼容）
+        # 但同时保留原始模型用于类型安全的访问
+        if isinstance(payload, BaseModel):
+            payload_model = payload
+            payload_dict = payload.model_dump()
+        else:
+            payload_model = None
+            payload_dict = payload
+
+        command_type = TaskType(payload_dict.get("command_type", self.command_type))
 
         self.log_info(f"Starting command execution: {command_type}")
 
         try:
             if command_type == TaskType.PERF_TEST_CMD:
-                return await self._execute_perf_test(payload)
+                return await self._execute_perf_test(payload_dict, payload_model)
             elif command_type == TaskType.EVAL_TEST:
-                return await self._execute_eval_test(payload)
+                return await self._execute_eval_test(payload_dict, payload_model)
             elif command_type == TaskType.PYTEST:
-                return await self._execute_pytest(payload)
+                return await self._execute_pytest(payload_dict, payload_model)
             elif command_type == TaskType.ENV_DEPLOY:
-                return await self._execute_env_deploy(payload)
+                return await self._execute_env_deploy(payload_dict, payload_model)
             elif command_type == TaskType.GENERIC_COMMAND:
-                return await self._execute_generic(payload)
+                return await self._execute_generic(payload_dict)
             else:
                 raise ValueError(f"Unsupported command type: {command_type}")
 
@@ -136,7 +153,11 @@ class CommandExecutor(BaseExecutor):
                 error=str(e),
             )
 
-    async def _execute_perf_test(self, payload: Dict[str, Any]) -> ExecutionResult:
+    async def _execute_perf_test(
+        self,
+        payload: Dict[str, Any],
+        payload_model: Optional[PerfTestPayload] = None
+    ) -> ExecutionResult:
         """执行性能测试命令
 
         使用 appauto bench evalscope perf 命令
@@ -219,7 +240,11 @@ class CommandExecutor(BaseExecutor):
         return await self._run_command(cmd_parts)
 
 
-    async def _execute_eval_test_async_polling(self, payload: Dict[str, Any]) -> ExecutionResult:
+    async def _execute_eval_test_async_polling(
+        self,
+        payload: Dict[str, Any],
+        payload_model: Optional[EvalTestPayload] = None
+    ) -> ExecutionResult:
         """
         执行正确性测试命令（异步轮询模式）
 
@@ -227,8 +252,46 @@ class CommandExecutor(BaseExecutor):
 
         Args:
             payload: 必须包含 eval 测试所需的所有参数
+            payload_model: 可选的 Pydantic 模型，提供类型安全
         """
         self.log_info("Executing correctness test in async polling mode")
+
+        # 如果有 payload_model，使用它；否则尝试创建一个（用于验证）
+        if payload_model is None:
+            try:
+                payload_model = EvalTestPayload(**payload)
+                self.log_info("Created EvalTestPayload from dict for validation")
+            except ValidationError as e:
+                self.log_error(f"Payload validation failed: {e}")
+                return ExecutionResult(
+                    success=False,
+                    summary={"error": f"Invalid payload: {e}"},
+                    error=f"Payload validation failed: {e}",
+                )
+
+        # 使用 payload_model 的字段（类型安全）
+        base = payload_model.base
+        ip = payload_model.ip
+        ssh_user = payload_model.ssh_user
+        ssh_password = payload_model.ssh_password or ""
+        ssh_port = payload_model.ssh_port
+        model = payload_model.model
+        port = payload_model.port
+        dataset = payload_model.dataset
+        max_tokens = payload_model.max_tokens
+        concurrency = payload_model.concurrency
+        limit = payload_model.limit
+        temperature = payload_model.temperature
+        enable_thinking = payload_model.enable_thinking
+        debug = payload_model.debug
+
+        self.log_info(f"Eval test configuration: base={base}, ip={ip}, model={model}, dataset={dataset}")
+
+        # 根据 base 参数决定是否跳过 AMaaS API 初始化
+        # FT 场景只需要 CLI，不需要 AMaaS API
+        skip_api = (base == "ft")
+
+        self.log_info(f"Initializing node with skip_api={skip_api} for base={base}")
 
         # 构建 Python 脚本，直接调用 appauto 的 API
         python_script = f"""
@@ -238,26 +301,50 @@ from appauto.operator.amaas_node import AMaaSNode
 from appauto.tool.evalscope.eval import EvalscopeEval
 
 # 参数
-ip = "{payload.get('ip')}"
-ssh_user = "{payload.get('ssh_user', 'qujing')}"
-ssh_password = "{payload.get('ssh_password', 'madsys123')}"
-ssh_port = {payload.get('ssh_port', 22)}
-model = "{payload.get('model')}"
-port = {payload.get('port', 10011)}
-dataset = "{payload.get('dataset')}"
-max_tokens = {payload.get('max_tokens', 50000)}
-concurrency = {payload.get('concurrency', 4)}
-limit = {payload.get('limit') if payload.get('limit') else 'None'}
-temperature = {payload.get('temperature', 0.6)}
-enable_thinking = {str(payload.get('enable_thinking', True))}
-debug = {str(payload.get('debug', True))}
+ip = "{ip}"
+ssh_user = "{ssh_user}"
+ssh_password = "{ssh_password}"
+ssh_port = {ssh_port}
+model = "{model}"
+port = {port}
+dataset = "{dataset}"
+max_tokens = {max_tokens}
+concurrency = {concurrency}
+limit = {limit if limit else 'None'}
+temperature = {temperature}
+enable_thinking = {enable_thinking}
+debug = {debug}
+base = "{base}"
+
+# 根据 base 参数决定是否跳过 AMaaS API
+# FT 场景：只需要 CLI，不需要 AMaaS API（skip_api=True）
+# AMaaS 场景：需要 CLI 和 API（skip_api=False）
+skip_api = (base == "ft")
+
+print(f"[INFO] Connecting to node: ip={{ip}}, base={{base}}, skip_api={{skip_api}}")
 
 # 连接到节点
-amaas = AMaaSNode(ip, ssh_user, ssh_password, ssh_port)
+# 关键修复：FT 场景使用 skip_api=True 避免调用 amaas login
+node = AMaaSNode(
+    mgt_ip=ip,
+    ssh_user=ssh_user,
+    ssh_password=ssh_password,
+    ssh_port=ssh_port,
+    skip_api=skip_api,  # FT 场景跳过 API 初始化
+    skip_cli=False,     # 始终需要 CLI
+)
+
+print(f"[INFO] Node connected successfully")
+
+# 获取 API key（仅 AMaaS 场景需要）
+api_key = None
+if not skip_api and hasattr(node, 'api') and node.api and hasattr(node.api, 'api_keys') and node.api.api_keys:
+    api_key = node.api.api_keys[0].value
+    print(f"[INFO] Using API key from AMaaS")
 
 # 创建 EvalscopeEval 实例
 evalscope = EvalscopeEval(
-    amaas.cli,
+    node.cli,
     model,
     "127.0.0.1",
     port,
@@ -269,7 +356,7 @@ evalscope = EvalscopeEval(
     temperature,
     enable_thinking,
     debug,
-    api_key=amaas.api.api_keys[0].value if hasattr(amaas, 'api') and amaas.api.api_keys else None,
+    api_key=api_key,
 )
 
 # 1. 启动后台测试
@@ -346,7 +433,11 @@ while True:
             except:
                 pass
 
-    async def _execute_eval_test(self, payload: Dict[str, Any]) -> ExecutionResult:
+    async def _execute_eval_test(
+        self,
+        payload: Dict[str, Any],
+        payload_model: Optional[EvalTestPayload] = None
+    ) -> ExecutionResult:
         """执行正确性测试命令
 
         使用异步轮询模式执行 eval 测试（新方案）
@@ -362,12 +453,17 @@ while True:
                 - concurrency: 并发度
                 - temperature: 温度参数
                 等评测参数
+            payload_model: 可选的 Pydantic 模型
         """
         # 使用新的异步轮询模式
-        return await self._execute_eval_test_async_polling(payload)
+        return await self._execute_eval_test_async_polling(payload, payload_model)
 
 
-    async def _execute_pytest(self, payload: Dict[str, Any]) -> ExecutionResult:
+    async def _execute_pytest(
+        self,
+        payload: Dict[str, Any],
+        payload_model: Optional[PytestPayload] = None
+    ) -> ExecutionResult:
         """执行 pytest 测试
 
         使用 appauto run pytest 命令
@@ -483,7 +579,11 @@ while True:
         self.log_info(f"Running pytest in appauto source directory: {self.repo_path}")
         return await self._run_command(cmd_parts, cwd=str(self.repo_path))
 
-    async def _execute_env_deploy(self, payload: Dict[str, Any]) -> ExecutionResult:
+    async def _execute_env_deploy(
+        self,
+        payload: Dict[str, Any],
+        payload_model: Optional[EnvDeployPayload] = None
+    ) -> ExecutionResult:
         """执行环境部署
 
         使用 appauto env deploy 命令
