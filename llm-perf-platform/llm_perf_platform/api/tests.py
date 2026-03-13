@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 import math
 import os
 
@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 
 from llm_perf_platform.api.auth import get_current_user
 from llm_perf_platform.api.schemas import (
+    AppautoBranchesResponse,
     ArchiveRequest,
     ArchiveResponse,
     CancelTaskResponse,
@@ -616,7 +617,7 @@ def _run_perf_test(
     )
 
 
-def serialize_task(record, current_user_id: int = None) -> TaskSummary:
+def serialize_task(record, current_user_id: int | None = None) -> TaskSummary:
     user_email = None
     if record.user_id:
         with get_session() as session:
@@ -645,7 +646,7 @@ def serialize_task(record, current_user_id: int = None) -> TaskSummary:
 
 
 @router.get("/appauto/branches")
-def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) -> Dict[str, Any]:
+def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) -> AppautoBranchesResponse:
     """获取可用的 appauto 分支列表
 
     从 appauto 源码仓库获取所有分支
@@ -727,10 +728,10 @@ def get_appauto_branches(current_user: UserAccount = Depends(get_current_user)) 
             branches.remove("main")
             branches.insert(0, "main")
 
-        return {
-            "branches": branches,
-            "source_path": str(appauto_repo),
-        }
+        return AppautoBranchesResponse(
+            branches=branches,
+            source_path=str(appauto_repo),
+        )
 
     except subprocess.TimeoutExpired:
         raise HTTPException(
@@ -1110,73 +1111,35 @@ def run_eval_via_ft_with_launch(request: TestEvalViaFTWithLaunch, current_user =
 # ========== 环境部署 API ==========
 
 def _run_deploy(
-    deploy_type: str,
-    request,
+    deploy_type: Literal["amaas", "ft"],
+    request: DeployAMaaSRequest | DeployFTRequest,
     current_user,
 ) -> DeployResponse:
-    """环境部署的通用实现函数
-
-    Args:
-        deploy_type: 部署类型，"amaas" 或 "ft"
-        request: 请求对象（DeployAMaaSRequest 或 DeployFTRequest）
-        current_user: 当前登录用户
-
-    Returns:
-        DeployResponse: 部署任务响应
-    """
-    # 构建任务参数
-    parameters = {
-        "task_type": "env_deploy",  # 标记为环境部署
+    parameters = request.model_dump() | {
+        "task_type": "env_deploy",
+        # 覆盖/添加服务层需要的额外字段
         "deploy_type": deploy_type,
-        "ip": request.ip,
-        "tar_name": request.tar_name,
-        "ssh_user": request.ssh_user,
-        "ssh_password": request.ssh_password,
-        "ssh_port": request.ssh_port,
-        "user": request.user,
-        "appauto_branch": request.appauto_branch,
     }
-
-    # AMaaS 部署需要 tag 参数（FT 已移除 tag）
-    if deploy_type == "amaas":
-        parameters["tag"] = request.tag
-
-    # 创建任务记录
+    
     record = task_service.create_task(
-        engine="appauto",  # 使用 appauto 作为引擎
-        model=f"{deploy_type}_deploy",  # 模型字段用来区分部署类型
-        parameters=parameters,
+        engine="appauto",
+        model=f"{deploy_type}_deploy",
+        parameters=parameters,  # 已经是 dict，但由 Pydantic 自动生成
         status="queued",
-        ssh_config=None,  # 部署任务不需要 SSH 配置（参数已包含在 parameters 中）
+        ssh_config=None,
         user_id=current_user.id,
         appauto_branch=request.appauto_branch,
         task_type="env_deploy",
     )
 
-    # 构建调度器 payload - 使用 Pydantic 模型
-    payload_dict = {
-        "task_id": record.id,
-        "task_type": "env_deploy",
-        "deploy_type": deploy_type,
-        "ip": request.ip,
-        "tar_name": request.tar_name,
-        "ssh_user": request.ssh_user,
-        "ssh_password": request.ssh_password,
-        "ssh_port": request.ssh_port,
-        "user": request.user,
-        "appauto_branch": request.appauto_branch,
-    }
-
-    # AMaaS 部署需要 tag 参数（FT 已移除 tag）
-    if deploy_type == "amaas":
-        payload_dict["tag"] = request.tag
-
-    # 创建 Pydantic Payload 模型（会自动验证）
-    payload = EnvDeployPayload(**payload_dict)
-
-    # 提交任务到调度器
+    payload = EnvDeployPayload(
+        **request.model_dump(exclude_none=True),  # 自动排除 FT 缺失的 tag
+        task_id=record.id,
+        task_type="env_deploy",
+    )
+    
     task_scheduler.submit(record.id, payload)
-
+    
     return DeployResponse(
         task_id=record.id,
         display_id=record.display_id or record.id,

@@ -444,27 +444,25 @@ class TestEvalResponse(BaseModel):
 
 # ===== 环境部署 =====
 
-class DeployAMaaSRequest(BaseModel):
+class DeployRequestBase(BaseModel):
+    """部署请求基类"""
+    ip: str
+    tar_name: str
+    ssh_user: str = "qujing"
+    ssh_password: str = "qujing@$#21"
+    ssh_port: int = 22
+    user: Optional[str] = None  # 消息卡片中的用户信息
+    appauto_branch: str = "main"
+
+
+class DeployAMaaSRequest(DeployRequestBase):
     """AMaaS 部署请求"""
-    ip: str
-    tag: str
-    tar_name: str
-    ssh_user: str = "qujing"
-    ssh_password: str = "qujing@$#21"
-    ssh_port: int = 22
-    user: Optional[str] = None  # 消息卡片中的用户信息
-    appauto_branch: str = "main"
+    tag: str  # AMaaS 特有
 
 
-class DeployFTRequest(BaseModel):
+class DeployFTRequest(DeployRequestBase):
     """FT 部署请求"""
-    ip: str
-    tar_name: str
-    ssh_user: str = "qujing"
-    ssh_password: str = "qujing@$#21"
-    ssh_port: int = 22
-    user: Optional[str] = None  # 消息卡片中的用户信息
-    appauto_branch: str = "main"
+    pass  # FT 没有 tag 字段
 
 
 class DeployResponse(BaseModel):
@@ -474,6 +472,12 @@ class DeployResponse(BaseModel):
     uuid: str
     status: str
     message: str
+
+
+class AppautoBranchesResponse(BaseModel):
+    """Appauto 分支列表响应"""
+    branches: List[str]
+    source_path: str
 
 
 # ========== 内部 Payload 模型（用于 Scheduler 和 Executor 之间传递数据）==========
@@ -629,20 +633,9 @@ class EnvDeployPayload(BasePayload):
 
     数据流: API Request → EnvDeployPayload → CommandExecutor
     """
-    task_type: str = "env_deploy"
+    
 
-    deploy_type: Literal["amaas", "ft"]
-    ip: str
-    tag: Optional[str] = None
-    tar_name: Optional[str] = None
-    ssh_user: str = "qujing"
-    ssh_password: str = "qujing@$#21"
-    ssh_port: int = 22
-    user: Optional[str] = None
-    appauto_branch: str = "main"
 
-    # FT 特有参数
-    image: Optional[str] = None
 
 
 class HardwareInfoPayload(BasePayload):

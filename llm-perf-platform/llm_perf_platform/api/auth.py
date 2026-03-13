@@ -6,6 +6,7 @@ from llm_perf_platform.api.schemas import (
     ProfileResponse,
     RegisterRequest,
 )
+from llm_perf_platform.models.user_account import UserAccount
 from llm_perf_platform.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth")
@@ -19,7 +20,7 @@ def get_token(authorization: str = Header(..., alias="Authorization")) -> str:
     return authorization.split(" ", 1)[1]
 
 
-def get_current_user(token: str = Depends(get_token)):
+def get_current_user(token: str = Depends(get_token)) -> UserAccount:
     """获取当前登录用户（依赖注入）"""
     user = auth_service.get_user_by_token(token)
     if not user:

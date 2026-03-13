@@ -24,6 +24,7 @@ from llm_perf_platform.executor.model_scanner import (
 )
 from llm_perf_platform.executor.model_lifecycle import ModelLifecycleManager
 from llm_perf_platform.models.db import get_session
+from llm_perf_platform.models.model_instance import ModelInstance
 
 
 logger = get_logger(__name__)
@@ -187,7 +188,7 @@ async def list_model_configs():
 # ========== Model Lifecycle Management ==========
 
 
-def _instance_to_response(instance) -> ModelInstanceResponse:
+def _instance_to_response(instance: ModelInstance) -> ModelInstanceResponse:
     """将ModelInstance转换为响应格式"""
     return ModelInstanceResponse(
         id=instance.id,
