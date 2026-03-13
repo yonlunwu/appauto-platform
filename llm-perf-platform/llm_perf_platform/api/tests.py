@@ -19,6 +19,7 @@ from llm_perf_platform.api.schemas import (
     DeployResponse,
     HardwareInfoCollectRequest,
     HardwareInfoCollectResponse,
+    PreviewResultResponse,
     RetryTaskResponse,
     TaskDetailResponse,
     TaskListResponse,
@@ -57,7 +58,7 @@ result_storage = ResultStorage()
 
 
 @router.post("/run", response_model=TestRunResponse)
-def run_test(request: TestRunRequest, current_user = Depends(get_current_user)):
+def run_test(request: TestRunRequest, current_user: UserAccount = Depends(get_current_user)) -> TestRunResponse:
     # 验证远程执行模式下必须提供SSH配置
     if request.execution_mode == "remote" and not request.ssh_config:
         raise HTTPException(
@@ -122,7 +123,7 @@ def run_test(request: TestRunRequest, current_user = Depends(get_current_user)):
 
 
 @router.post("/run_perf/amaas/skip_launch", response_model=TestRunResponse)
-def run_perf_via_amaas_skip_launch(request: TestPerfViaAMaaSSkipLaunch, current_user = Depends(get_current_user)):
+def run_perf_via_amaas_skip_launch(request: TestPerfViaAMaaSSkipLaunch, current_user: UserAccount = Depends(get_current_user)) -> TestRunResponse:
     """AMaaS 场景性能测试 - 跳过模型启动"""
     return _run_perf_test(
         base="amaas",
@@ -133,7 +134,7 @@ def run_perf_via_amaas_skip_launch(request: TestPerfViaAMaaSSkipLaunch, current_
 
 
 @router.post("/run_perf/amaas/with_launch", response_model=TestRunResponse)
-def run_perf_via_amaas_with_launch(request: TestPerfViaAmaaSWithLaunch, current_user = Depends(get_current_user)):
+def run_perf_via_amaas_with_launch(request: TestPerfViaAmaaSWithLaunch, current_user: UserAccount = Depends(get_current_user)) -> TestRunResponse:
     """AMaaS 场景性能测试 - 自动启动模型"""
     return _run_perf_test(
         base="amaas",
@@ -144,7 +145,7 @@ def run_perf_via_amaas_with_launch(request: TestPerfViaAmaaSWithLaunch, current_
 
 
 @router.post("/run_perf/ft/skip_launch", response_model=TestRunResponse)
-def run_perf_via_ft_skip_launch(request: TestPerfViaFTSkipLaunch, current_user = Depends(get_current_user)):
+def run_perf_via_ft_skip_launch(request: TestPerfViaFTSkipLaunch, current_user: UserAccount = Depends(get_current_user)) -> TestRunResponse:
     """FT 容器场景性能测试 - 跳过模型启动"""
     return _run_perf_test(
         base="ft",
@@ -155,7 +156,7 @@ def run_perf_via_ft_skip_launch(request: TestPerfViaFTSkipLaunch, current_user =
 
 
 @router.post("/run_perf/ft/with_launch", response_model=TestRunResponse)
-def run_perf_via_ft_with_launch(request: TestPerfViaFTWithLaunch, current_user = Depends(get_current_user)):
+def run_perf_via_ft_with_launch(request: TestPerfViaFTWithLaunch, current_user: UserAccount = Depends(get_current_user)) -> TestRunResponse:
     """FT 容器场景性能测试 - 自动启动模型"""
     return _run_perf_test(
         base="ft",
@@ -169,9 +170,9 @@ def run_perf_via_ft_with_launch(request: TestPerfViaFTWithLaunch, current_user =
 def list_tasks(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页大小"),
-    task_type: str = Query(None, description="任务类型过滤 (hardware_info, perf_test, etc.)"),
-    current_user = Depends(get_current_user)
-):
+    task_type: str | None = Query(None, description="任务类型过滤 (hardware_info, perf_test, etc.)"),
+    current_user: UserAccount = Depends(get_current_user)
+) -> TaskListResponse:
     """获取任务列表（分页）
 
     默认每页返回20个任务，按创建时间倒序排列
@@ -196,7 +197,7 @@ def list_tasks(
 
 
 @router.get("/{task_id}", response_model=TaskDetailResponse)
-def get_task(task_id: int):
+def get_task(task_id: int) -> TaskDetailResponse:
     record = task_service.get_task(task_id)
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -204,7 +205,7 @@ def get_task(task_id: int):
 
 
 @router.post("/archive", response_model=ArchiveResponse)
-def archive_task(request: ArchiveRequest):
+def archive_task(request: ArchiveRequest) -> ArchiveResponse:
     """归档任务结果文件
 
     ⚠️ WARNING: This API is under development and incomplete.
@@ -234,7 +235,7 @@ def archive_task(request: ArchiveRequest):
 
 
 @router.get("/{task_id}/result")
-def download_result(task_id: int):
+def download_result(task_id: int) -> FileResponse:
     record = task_service.get_task(task_id)
     if not record or not record.result_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Result not found")
@@ -247,7 +248,7 @@ def download_result(task_id: int):
 
 
 @router.delete("/{task_id}", response_model=DeleteTaskResponse)
-def delete_task(task_id: int, current_user = Depends(get_current_user)):
+def delete_task(task_id: int, current_user: UserAccount = Depends(get_current_user)) -> DeleteTaskResponse:
     record = task_service.get_task(task_id)
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -272,7 +273,7 @@ def delete_task(task_id: int, current_user = Depends(get_current_user)):
 
 
 @router.post("/{task_id}/cancel", response_model=CancelTaskResponse)
-def cancel_task(task_id: int, current_user = Depends(get_current_user)):
+def cancel_task(task_id: int, current_user: UserAccount = Depends(get_current_user)) -> CancelTaskResponse:
     """取消正在运行的任务
 
     只有任务创建者可以取消任务。
@@ -318,7 +319,7 @@ def cancel_task(task_id: int, current_user = Depends(get_current_user)):
 
 
 @router.post("/{task_id}/retry", response_model=RetryTaskResponse)
-def retry_task(task_id: int, current_user = Depends(get_current_user)):
+def retry_task(task_id: int, current_user: UserAccount = Depends(get_current_user)) -> RetryTaskResponse:
     """重新提交任务
 
     根据原任务的参数创建一个新任务并提交执行。
@@ -389,7 +390,7 @@ def retry_task(task_id: int, current_user = Depends(get_current_user)):
 
 
 @router.get("/{task_id}/logs", response_model=TaskLogsResponse)
-def get_task_logs(task_id: int):
+def get_task_logs(task_id: int) -> TaskLogsResponse:
     """获取任务执行日志
 
     返回任务的完整执行日志内容。
@@ -432,7 +433,7 @@ def get_task_logs(task_id: int):
 
 
 @router.post("/hardware_info/collect", response_model=HardwareInfoCollectResponse)
-def collect_hardware_info(request: HardwareInfoCollectRequest, current_user = Depends(get_current_user)):
+def collect_hardware_info(request: HardwareInfoCollectRequest, current_user: UserAccount = Depends(get_current_user)) -> HardwareInfoCollectResponse:
     """收集远程机器的硬件信息
 
     收集包括：
@@ -837,8 +838,8 @@ def extract_chart_data(all_rows: List[tuple]) -> Dict[str, Any] | None:
         return None
 
 
-@router.get("/{task_id}/preview")
-def preview_result(task_id: int, current_user = Depends(get_current_user)):
+@router.get("/{task_id}/preview", response_model=PreviewResultResponse)
+def preview_result(task_id: int, current_user: UserAccount = Depends(get_current_user)) -> PreviewResultResponse:
     """预览测试结果的Excel数据
 
     返回JSON格式的数据，包含：
@@ -923,11 +924,11 @@ def preview_result(task_id: int, current_user = Depends(get_current_user)):
 
         wb.close()
 
-        return {
-            "task_id": task_id,
-            "sheets": sheets,
-            "chart_data": chart_data,
-        }
+        return PreviewResultResponse(
+            task_id=task_id,
+            sheets=sheets,
+            chart_data=chart_data,
+        )
 
     except Exception as e:
         raise HTTPException(
@@ -1065,7 +1066,7 @@ def _run_eval_test(
 
 
 @router.post("/run_eval/amaas/skip_launch", response_model=TestEvalResponse)
-def run_eval_via_amaas_skip_launch(request: TestEvalViaAMaaSSkipLaunch, current_user = Depends(get_current_user)):
+def run_eval_via_amaas_skip_launch(request: TestEvalViaAMaaSSkipLaunch, current_user: UserAccount = Depends(get_current_user)) -> TestEvalResponse:
     """AMaaS 场景正确性测试 - 跳过模型启动"""
     return _run_eval_test(
         base="amaas",
@@ -1076,7 +1077,7 @@ def run_eval_via_amaas_skip_launch(request: TestEvalViaAMaaSSkipLaunch, current_
 
 
 @router.post("/run_eval/amaas/with_launch", response_model=TestEvalResponse)
-def run_eval_via_amaas_with_launch(request: TestEvalViaAMaaSWithLaunch, current_user = Depends(get_current_user)):
+def run_eval_via_amaas_with_launch(request: TestEvalViaAMaaSWithLaunch, current_user: UserAccount = Depends(get_current_user)) -> TestEvalResponse:
     """AMaaS 场景正确性测试 - 自动启动模型"""
     return _run_eval_test(
         base="amaas",
@@ -1087,7 +1088,7 @@ def run_eval_via_amaas_with_launch(request: TestEvalViaAMaaSWithLaunch, current_
 
 
 @router.post("/run_eval/ft/skip_launch", response_model=TestEvalResponse)
-def run_eval_via_ft_skip_launch(request: TestEvalViaFTSkipLaunch, current_user = Depends(get_current_user)):
+def run_eval_via_ft_skip_launch(request: TestEvalViaFTSkipLaunch, current_user: UserAccount = Depends(get_current_user)) -> TestEvalResponse:
     """FT 容器场景正确性测试 - 跳过模型启动"""
     return _run_eval_test(
         base="ft",
@@ -1098,7 +1099,7 @@ def run_eval_via_ft_skip_launch(request: TestEvalViaFTSkipLaunch, current_user =
 
 
 @router.post("/run_eval/ft/with_launch", response_model=TestEvalResponse)
-def run_eval_via_ft_with_launch(request: TestEvalViaFTWithLaunch, current_user = Depends(get_current_user)):
+def run_eval_via_ft_with_launch(request: TestEvalViaFTWithLaunch, current_user: UserAccount = Depends(get_current_user)) -> TestEvalResponse:
     """FT 容器场景正确性测试 - 自动启动模型"""
     return _run_eval_test(
         base="ft",
@@ -1150,7 +1151,7 @@ def _run_deploy(
 
 
 @router.post("/deploy/amaas", response_model=DeployResponse)
-def deploy_amaas(request: DeployAMaaSRequest, current_user = Depends(get_current_user)):
+def deploy_amaas(request: DeployAMaaSRequest, current_user: UserAccount = Depends(get_current_user)) -> DeployResponse:
     """部署 AMaaS 环境"""
     return _run_deploy(
         deploy_type="amaas",
@@ -1160,7 +1161,7 @@ def deploy_amaas(request: DeployAMaaSRequest, current_user = Depends(get_current
 
 
 @router.post("/deploy/ft", response_model=DeployResponse)
-def deploy_ft(request: DeployFTRequest, current_user = Depends(get_current_user)):
+def deploy_ft(request: DeployFTRequest, current_user: UserAccount = Depends(get_current_user)) -> DeployResponse:
     """部署 FT 环境"""
     return _run_deploy(
         deploy_type="ft",

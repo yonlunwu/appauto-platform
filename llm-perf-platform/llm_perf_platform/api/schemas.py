@@ -480,6 +480,29 @@ class AppautoBranchesResponse(BaseModel):
     source_path: str
 
 
+class ChartData(BaseModel):
+    """图表数据"""
+    concurrency_levels: List[int]
+    ttft_values: List[float]
+    tps_values: List[float]
+    has_multiple_concurrency: bool
+
+
+class SheetData(BaseModel):
+    """Excel 工作表数据"""
+    name: str
+    rows: List[List[Any]]
+    total_rows: int
+    is_truncated: bool
+
+
+class PreviewResultResponse(BaseModel):
+    """预览测试结果响应"""
+    task_id: int
+    sheets: List[SheetData]
+    chart_data: Optional[ChartData] = None
+
+
 # ========== 内部 Payload 模型（用于 Scheduler 和 Executor 之间传递数据）==========
 # 这些模型用于内部数据传递，提供类型安全和运行时验证
 # 与上面的 Request 模型不同，Payload 模型是经过 API 层处理后的内部数据结构
